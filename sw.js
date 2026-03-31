@@ -1,5 +1,9 @@
-const CACHE = 'dronewind-v2';
+const CACHE = 'dronewind-v3';
 const ASSETS = ['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

@@ -412,8 +412,9 @@ async function doSearch(q){
 function renderSug(){
   const el=document.getElementById('suggestions');
   if(!sugData.length){hideSug();return;}
+  // NO onmouseenter — CSS :hover handles highlight. onclick uses mousedown to beat blur.
   el.innerHTML=sugData.map((s,i)=>
-    '<div class="sug'+(i===sugIdx?' sel':'')+'" onclick="selectSug('+i+')" onmouseenter="sugIdx='+i+';renderSug()">'+
+    '<div class="sug" onmousedown="event.preventDefault();selectSug('+i+')">'+
     '<span class="sug-name">'+(s.isSpot?'📍 ':s.isCoord?'🎯 ':'🔍 ')+esc(s.name)+'</span>'+
     '<span class="sug-addr">'+esc(s.addr||'')+'</span></div>'
   ).join('');
@@ -436,39 +437,29 @@ function onSrchKey(e){
 function selectSug(i){
   const s=sugData[i];
   if(!s)return;
-  if(s.isSpot){
-    // scroll to it or open modal
-    hideSug();document.getElementById('srch').value='';
-    openM((FS.find(x=>x.id===s.spotId)?'f':'c')+s.spotId);
-    return;
-  }
   document.getElementById('srch').value=s.name;
-  hideSug();
-  // pre-fill for adding
   document.getElementById('srch').dataset.lat=s.lat;
   document.getElementById('srch').dataset.lng=s.lng;
   document.getElementById('srch').dataset.rname=s.name;
-  toast('Premi + per aggiungere questo posto');
+  hideSug();
 }
 
 async function addCustom(){
   const el=document.getElementById('srch');
-  let lat=parseFloat(el.dataset.lat),lng=parseFloat(el.dataset.lng),name=el.dataset.rname;
-  if(!lat||!lng){
-    const q=el.value.trim();if(!q)return;
-    const cm=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
-    if(cm){lat=parseFloat(cm[1]);lng=parseFloat(cm[2]);name='Spot '+lat.toFixed(4)+','+lng.toFixed(4);}
-    else{
-      toast('Seleziona un suggerimento dalla lista');
-      if(q.length>=2)doSearch(q);
-      return;
-    }
+  const q=el.value.trim();
+  if(!q){toast('Scrivi un nome o coordinate nel campo ricerca');return;}
+  const cm=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if(cm){
+    const lat=parseFloat(cm[1]),lng=parseFloat(cm[2]);
+    const name='Spot '+lat.toFixed(4)+','+lng.toFixed(4);
+    const ns={id:Date.now(),sec:'Posti custom',name,lat,lng,c:true};
+    CS.push(ns);localStorage.setItem('cs',JSON.stringify(CS));
+    el.value='';renderSpots();toast('✓ Aggiunto: '+name);
+  } else {
+    // trigger search and pick first result
+    toast('Cerca e clicca un suggerimento per aggiungere');
+    doSearch(q);
   }
-  const ns={id:Date.now(),sec:'Posti custom',name,lat,lng,c:true};
-  CS.push(ns);localStorage.setItem('cs',JSON.stringify(CS));
-  el.value='';delete el.dataset.lat;delete el.dataset.lng;delete el.dataset.rname;
-  hideSug();renderSpots();
-  toast('Aggiunto: '+name);
 }
 
 // ══ VOICE SEARCH ════════════════════════════════════════════
@@ -581,7 +572,23 @@ function remC(id){CS=CS.filter(s=>s.id!==id);localStorage.setItem('cs',JSON.stri
 // ══ PWA ══════════════════════════════════════════════════════
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DI=e;document.getElementById('ic').style.display='block';});
 function doPWA(){if(!DI){toast('Usa "Aggiungi a schermata Home" dal browser');return;}DI.prompt();DI.userChoice.then(r=>{if(r.outcome==='accepted')toast('App installata! ✓');DI=null;document.getElementById('ic').style.display='none';});}
-function regSW(){if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+function regSW(){
+  if(!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('./sw.js').then(reg=>{
+    // force update check every time the app opens
+    reg.update();
+    reg.addEventListener('updatefound',()=>{
+      const nw=reg.installing;
+      nw.addEventListener('statechange',()=>{
+        if(nw.state==='installed'&&navigator.serviceWorker.controller){
+          // new SW installed: force reload to use fresh cache
+          navigator.serviceWorker.controller.postMessage({type:'SKIP_WAITING'});
+          window.location.reload();
+        }
+      });
+    });
+  }).catch(()=>{});
+}
 
 // ══ UTILS ════════════════════════════════════════════════════
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2800);}
