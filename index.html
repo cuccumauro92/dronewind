@@ -66,6 +66,7 @@ input::placeholder{color:var(--tx3)}
 .sug:hover,.sug.sel{background:var(--bg3)}
 .sug-name{font-weight:600;color:var(--tx)}
 .sug-addr{font-size:11px;color:var(--tx3);font-family:var(--mono)}
+/* quick check bar */
 /* summary */
 .wsum{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--bdr);border-bottom:1px solid var(--bdr);flex-shrink:0}
 .sc{background:var(--bg2);padding:10px;text-align:center;cursor:pointer;transition:background .12s}
@@ -435,39 +436,97 @@ function onSrchKey(e){
 
 function selectSug(i){
   const s=sugData[i];
-  if(!s)return;
-  document.getElementById('srch').value=s.name;
-  document.getElementById('srch').dataset.lat=s.lat;
-  document.getElementById('srch').dataset.lng=s.lng;
-  document.getElementById('srch').dataset.rname=s.name;
+  if(!s) return;
   hideSug();
+  document.getElementById('srch').value='';
+  if(s.isSpot){
+    openM((FS.find(x=>x.id===s.spotId)?'f':'c')+s.spotId);
+    return;
+  }
+  // immediately open modal with wind fetch — no intermediate step
+  window._qsel=s;
+  showTempWindModal(s);
 }
+
+function showTempWindModal(s){
+  const dt=new Date(document.getElementById('dti').value);
+  const p=n=>String(n).padStart(2,'0');
+  const ds=dt.getFullYear()+'-'+p(dt.getMonth()+1)+'-'+p(dt.getDate());
+  const gm='https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng;
+  const wz='https://waze.com/ul?ll='+s.lat+','+s.lng+'&navigate=yes';
+  const geo='geo:'+s.lat+','+s.lng+'?q='+s.lat+','+s.lng+'('+encodeURIComponent(s.name)+')';
+  const dsc='https://droneskycheck-d0136.web.app/?lat='+s.lat+'&lng='+s.lng;
+  const navHtml=
+    '<div class="navlbl">Naviga</div>'+
+    '<div class="navbtns">'+
+      '<a class="nb pr" href="'+gm+'" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Google Maps</a>'+
+      '<a class="nb wz" href="'+wz+'" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/></svg>Waze</a>'+
+      '<a class="nb" href="'+geo+'" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Scegli app</a>'+
+    '</div>'+
+    '<div class="mact">'+
+      '<a class="ml" href="'+dsc+'" target="_blank">Drone Sky Check</a>'+
+      '<button class="ml" style="color:var(--G);border-color:var(--Gbd)" onclick="quickAddSpot()">+ Aggiungi ai miei spot</button>'+
+    '</div>';
+
+  document.getElementById('mc').innerHTML=
+    '<div class="mname">'+esc(s.name)+'</div>'+
+    '<div class="msec">'+s.lat.toFixed(5)+', '+s.lng.toFixed(5)+'</div>'+
+    '<div id="tmp-wind" style="color:var(--tx3);font-size:13px;padding:10px 0 14px;font-family:var(--mono)" class="pls">Caricamento vento...</div>'+
+    navHtml;
+  document.getElementById('ov').classList.add('on');
+
+  fw(s.lat, s.lng, ds, dt.getHours()).then(r=>{
+    const x=st(r);
+    const vc=r.v50>MV?'var(--R)':r.v50>25?'var(--A)':'var(--G)';
+    const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':'var(--tx2)';
+    const bcl=x==='go'?'bgo':x==='warn'?'bwn':'bng';
+    const bl=x==='go'?'✓ Puoi volare':x==='warn'?'⚠ Vola con cautela':'✕ Troppo vento';
+    const html=
+      '<div style="margin-bottom:12px"><span class="bdg '+bcl+'" style="font-size:12px;padding:6px 14px">'+bl+'</span></div>'+
+      '<div class="mgrid">'+
+        '<div class="mst"><div class="mstl">Terra 10m</div><div class="mstv">'+r.v10+' <span style="font-size:13px;color:var(--tx3)">km/h</span></div></div>'+
+        '<div class="mst"><div class="mstl">Quota 50m</div><div class="mstv" style="color:'+vc+'">'+r.v50+' <span style="font-size:13px">km/h</span></div></div>'+
+        '<div class="mst"><div class="mstl">Raffiche</div><div class="mstv" style="color:'+gc+'">'+r.g+' <span style="font-size:13px;color:var(--tx3)">km/h</span></div></div>'+
+        '<div class="mst"><div class="mstl">Direzione</div><div class="mstv">'+d2a(r.dir)+' <span style="font-size:15px">'+r.dir+'°</span></div></div>'+
+      '</div>';
+    const tw=document.getElementById('tmp-wind');
+    if(tw) tw.outerHTML=html;
+  }).catch(()=>{
+    const tw=document.getElementById('tmp-wind');
+    if(tw){tw.textContent='Errore caricamento vento';tw.classList.remove('pls');}
+  });
+}
+
+
+
+function quickAddSpot(){
+  const s=window._qsel;
+  if(!s)return;
+  const existing=CS.find(c=>Math.abs(c.lat-s.lat)<0.001&&Math.abs(c.lng-s.lng)<0.001);
+  if(existing){toast('📍 Già in lista: '+s.name);return;}
+  CS.push({id:Date.now(),sec:'Posti custom',name:s.name,lat:s.lat,lng:s.lng,c:true});
+  localStorage.setItem('cs',JSON.stringify(CS));
+  renderSpots();
+  toast('✓ Aggiunto: '+s.name);
+  document.getElementById('ov').classList.remove('on');
+}
+
+function clearQbar(){ window._qsel=null; }
 
 async function addCustom(){
   const el=document.getElementById('srch');
   const q=el.value.trim();
-  if(!q){toast('Scrivi un nome o coordinate nel campo ricerca');return;}
-  // use coordinates stored by selectSug if present
-  const storedLat=parseFloat(el.dataset.lat), storedLng=parseFloat(el.dataset.lng);
-  if(storedLat&&storedLng){
-    const name=el.dataset.rname||q;
-    const ns={id:Date.now(),sec:'Posti custom',name,lat:storedLat,lng:storedLng,c:true};
-    CS.push(ns);localStorage.setItem('cs',JSON.stringify(CS));
-    el.value='';delete el.dataset.lat;delete el.dataset.lng;delete el.dataset.rname;
-    renderSpots();toast('✓ Aggiunto: '+name);
-    return;
-  }
-  // raw coordinates
+  if(!q){toast('Scrivi un nome o coordinate nel campo');return;}
   const cm=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
   if(cm){
     const lat=parseFloat(cm[1]),lng=parseFloat(cm[2]);
     const name='Spot '+lat.toFixed(4)+','+lng.toFixed(4);
-    const ns={id:Date.now(),sec:'Posti custom',name,lat,lng,c:true};
-    CS.push(ns);localStorage.setItem('cs',JSON.stringify(CS));
+    CS.push({id:Date.now(),sec:'Posti custom',name,lat,lng,c:true});
+    localStorage.setItem('cs',JSON.stringify(CS));
     el.value='';renderSpots();toast('✓ Aggiunto: '+name);
   } else {
-    toast('Clicca prima un suggerimento dalla lista');
-    doSearch(q);
+    toast('Seleziona dal menu o usa coordinate lat,lng');
+    if(q.length>=2) doSearch(q);
   }
 }
 
@@ -541,8 +600,8 @@ function openM(tid){
   const sp=isC?CS.find(s=>s.id===id):FS.find(s=>s.id===id);
   if(!sp)return;
   const r=WD[ck(sp.lat,sp.lng)];const x=st(r);
-  const gm='https://maps.google.com/maps?daddr='+sp.lat+','+sp.lng+'&dirflg=d';
-  const gms='https://maps.google.com/maps?q='+sp.lat+','+sp.lng;
+  const gm='https://www.google.com/maps/dir/?api=1&destination='+sp.lat+','+sp.lng;
+  const gms='https://www.google.com/maps/search/?api=1&query='+sp.lat+','+sp.lng;
   const wz='https://waze.com/ul?ll='+sp.lat+','+sp.lng+'&navigate=yes';
   const geo='geo:'+sp.lat+','+sp.lng+'?q='+sp.lat+','+sp.lng+'('+encodeURIComponent(sp.name)+')';
   const dsc='https://droneskycheck-d0136.web.app/?lat='+sp.lat+'&lng='+sp.lng;
@@ -583,19 +642,10 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DI=e;docume
 function doPWA(){if(!DI){toast('Usa "Aggiungi a schermata Home" dal browser');return;}DI.prompt();DI.userChoice.then(r=>{if(r.outcome==='accepted')toast('App installata! ✓');DI=null;document.getElementById('ic').style.display='none';});}
 function regSW(){
   if(!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('./sw.js').then(reg=>{
-    // force update check every time the app opens
-    reg.update();
-    reg.addEventListener('updatefound',()=>{
-      const nw=reg.installing;
-      nw.addEventListener('statechange',()=>{
-        if(nw.state==='installed'&&navigator.serviceWorker.controller){
-          // new SW installed: force reload to use fresh cache
-          navigator.serviceWorker.controller.postMessage({type:'SKIP_WAITING'});
-          window.location.reload();
-        }
-      });
-    });
+  // reload page when a new SW takes control — this fires after skipWaiting+claim
+  navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    reg.update(); // check for new version on every page load
   }).catch(()=>{});
 }
 
