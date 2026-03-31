@@ -412,9 +412,8 @@ async function doSearch(q){
 function renderSug(){
   const el=document.getElementById('suggestions');
   if(!sugData.length){hideSug();return;}
-  // NO onmouseenter — CSS :hover handles highlight. onclick uses mousedown to beat blur.
   el.innerHTML=sugData.map((s,i)=>
-    '<div class="sug" onmousedown="event.preventDefault();selectSug('+i+')">'+
+    '<div class="sug" data-idx="'+i+'">'+
     '<span class="sug-name">'+(s.isSpot?'📍 ':s.isCoord?'🎯 ':'🔍 ')+esc(s.name)+'</span>'+
     '<span class="sug-addr">'+esc(s.addr||'')+'</span></div>'
   ).join('');
@@ -448,6 +447,17 @@ async function addCustom(){
   const el=document.getElementById('srch');
   const q=el.value.trim();
   if(!q){toast('Scrivi un nome o coordinate nel campo ricerca');return;}
+  // use coordinates stored by selectSug if present
+  const storedLat=parseFloat(el.dataset.lat), storedLng=parseFloat(el.dataset.lng);
+  if(storedLat&&storedLng){
+    const name=el.dataset.rname||q;
+    const ns={id:Date.now(),sec:'Posti custom',name,lat:storedLat,lng:storedLng,c:true};
+    CS.push(ns);localStorage.setItem('cs',JSON.stringify(CS));
+    el.value='';delete el.dataset.lat;delete el.dataset.lng;delete el.dataset.rname;
+    renderSpots();toast('✓ Aggiunto: '+name);
+    return;
+  }
+  // raw coordinates
   const cm=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
   if(cm){
     const lat=parseFloat(cm[1]),lng=parseFloat(cm[2]);
@@ -456,8 +466,7 @@ async function addCustom(){
     CS.push(ns);localStorage.setItem('cs',JSON.stringify(CS));
     el.value='';renderSpots();toast('✓ Aggiunto: '+name);
   } else {
-    // trigger search and pick first result
-    toast('Cerca e clicca un suggerimento per aggiungere');
+    toast('Clicca prima un suggerimento dalla lista');
     doSearch(q);
   }
 }
@@ -594,7 +603,19 @@ function regSW(){
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2800);}
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-document.addEventListener('click',e=>{if(!e.target.closest('.r2')&&!e.target.closest('#suggestions'))hideSug();});
+// suggestions: delegated pointerdown (works on mouse, touch, stylus)
+document.getElementById('suggestions').addEventListener('pointerdown', function(e){
+  e.preventDefault(); // prevents input blur
+  const row = e.target.closest('.sug');
+  if(!row) return;
+  const i = parseInt(row.dataset.idx);
+  if(!isNaN(i)) selectSug(i);
+});
+
+// close suggestions clicking outside
+document.addEventListener('pointerdown', function(e){
+  if(!e.target.closest('#suggestions') && !e.target.closest('.r2')) hideSug();
+});
 
 init();
 </script>
