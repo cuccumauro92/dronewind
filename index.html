@@ -2,501 +2,593 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <meta name="theme-color" content="#0a0f0d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="DroneWind">
-<link rel="manifest" href="manifest.json">
-<title>DroneWind — Sanluri</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="manifest" href="./manifest.json">
+<title>DroneWind</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0a0f0d;--bg2:#111815;--bg3:#1a2420;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#e8f0ec;--text2:#7a9488;--text3:#4a6058;--green:#3dffa0;--gbg:rgba(61,255,160,0.08);--gb:rgba(61,255,160,0.22);--amber:#ffb347;--abg:rgba(255,179,71,0.08);--ab:rgba(255,179,71,0.22);--red:#ff5252;--rbg:rgba(255,82,82,0.08);--rb:rgba(255,82,82,0.22);--blue:#5bb8ff;--bbg:rgba(91,184,255,0.08);--bb:rgba(91,184,255,0.22);--mono:'Syne Mono',monospace;--sans:'Syne',sans-serif;--r:10px;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
+:root{--bg:#0a0f0d;--bg2:#111815;--bg3:#1a2420;--bdr:rgba(255,255,255,.07);--bdr2:rgba(255,255,255,.14);
+--tx:#e8f0ec;--tx2:#7a9488;--tx3:#4a6058;
+--G:#3dffa0;--Gbg:rgba(61,255,160,.08);--Gbd:rgba(61,255,160,.22);
+--A:#ffb347;--Abg:rgba(255,179,71,.08);--Abd:rgba(255,179,71,.22);
+--R:#ff5252;--Rbg:rgba(255,82,82,.08);--Rbd:rgba(255,82,82,.22);
+--B:#5bb4ff;--Bbg:rgba(91,180,255,.08);--Bbd:rgba(91,180,255,.22);
+--mono:'Syne Mono',monospace;--sans:'Syne',sans-serif;--rd:10px;
+--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;display:flex;flex-direction:column}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px;display:flex;flex-direction:column}
 #app{display:flex;flex-direction:column;height:100%;padding-top:var(--st)}
-#hdr{padding:12px 16px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-#hdr h1{font-size:16px;font-weight:800;letter-spacing:-.5px;color:var(--green)}
-#hdr h1 span{color:var(--text2);font-weight:400}
-#content{flex:1;overflow:hidden;display:flex;flex-direction:column}
-#tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;scrollbar-width:none}
+/* header */
+#hdr{padding:11px 14px 9px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px}
+#hdr h1{font-size:16px;font-weight:800;letter-spacing:-.5px;color:var(--G)}
+#hdr h1 span{color:var(--tx2);font-weight:400}
+#hst{font-size:10px;font-family:var(--mono);color:var(--G)}
+/* tabs */
+#cnt{flex:1;overflow:hidden;display:flex;flex-direction:column}
+#tabs{display:flex;border-bottom:1px solid var(--bdr);flex-shrink:0;overflow-x:auto;scrollbar-width:none}
 #tabs::-webkit-scrollbar{display:none}
-.tab{padding:10px 13px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
-.tab.active{color:var(--green);border-color:var(--green)}.tab:hover:not(.active){color:var(--text2)}
+.tab{padding:9px 14px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
+.tab.on{color:var(--G);border-color:var(--G)}.tab:hover:not(.on){color:var(--tx2)}
 .panel{display:none;flex:1;overflow-y:auto;overflow-x:hidden;flex-direction:column;padding-bottom:var(--sb)}
-.panel.active{display:flex}
-.ctrls{padding:10px 12px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
-input[type=datetime-local],input[type=text]{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none;min-width:0}
-input:focus{border-color:var(--green)}
-.btn{background:var(--green);color:#0a0f0d;font-family:var(--sans);font-size:12px;font-weight:700;padding:8px 12px;border:none;border-radius:var(--r);cursor:pointer;white-space:nowrap;letter-spacing:.03em;transition:opacity .15s,transform .1s;flex-shrink:0}
+.panel.on{display:flex}
+/* buttons */
+.btn{background:var(--G);color:#0a0f0d;font-family:var(--sans);font-size:12px;font-weight:700;padding:8px 14px;border:none;border-radius:var(--rd);cursor:pointer;white-space:nowrap;letter-spacing:.03em;transition:opacity .15s,transform .1s}
 .btn:hover{opacity:.9}.btn:active{transform:scale(.97)}.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
-.btn.sec{background:var(--bg3);color:var(--text);border:1px solid var(--border2)}
-.sumbar{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border);flex-shrink:0}
-.sc{background:var(--bg2);padding:10px;text-align:center;cursor:pointer;transition:background .15s}
-.sc:hover,.sc.act{background:var(--bg3)}
-.scn{font-family:var(--mono);font-size:22px}.scl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-top:1px;color:var(--text3)}
-.s-go .scn{color:var(--green)}.s-warn .scn{color:var(--amber)}.s-nogo .scn{color:var(--red)}
-.sh{padding:12px 16px 5px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);font-weight:700}
-.sr{padding:10px 14px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;cursor:pointer;transition:background .12s}
-.sr:hover{background:var(--bg2)}.sr:active{background:var(--bg3)}
-.sn{font-size:13px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px}
-.snum{color:var(--text3);font-size:10px;font-family:var(--mono)}
-.sd{font-family:var(--mono);font-size:11px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px}
+.btn.sec{background:var(--bg3);color:var(--tx);border:1px solid var(--bdr2)}
+.btn.sm{padding:6px 10px;font-size:11px}
+/* inputs */
+input[type=text],input[type=datetime-local]{background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rd);color:var(--tx);font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none;-webkit-appearance:none}
+input:focus{border-color:var(--G)}
+input::placeholder{color:var(--tx3)}
+
+/* ── WIND PANEL ─────────────────────────────────── */
+#panel-wind{gap:0}
+.wctrl{padding:10px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+.r1{display:flex;gap:6px;align-items:center}
+#dti{flex:1;min-width:0}
+.r2{display:flex;gap:6px;align-items:center}
+#srch{flex:1;min-width:0}
+/* mic button */
+.mic{width:36px;height:36px;border-radius:50%;background:var(--bg3);border:1px solid var(--bdr2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s,background .15s}
+.mic:hover{border-color:var(--G)}.mic.listening{border-color:var(--R);background:var(--Rbg);animation:micpulse 1s infinite}
+.mic svg{width:16px;height:16px;fill:var(--tx2)}
+.mic.listening svg{fill:var(--R)}
+@keyframes micpulse{0%,100%{box-shadow:0 0 0 0 var(--Rbd)}50%{box-shadow:0 0 0 6px transparent}}
+/* search suggestions */
+#suggestions{background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--rd);overflow:hidden;display:none;flex-direction:column;flex-shrink:0;margin:0 12px}
+.sug{padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--bdr);font-size:13px;transition:background .1s;display:flex;flex-direction:column;gap:2px}
+.sug:last-child{border-bottom:none}
+.sug:hover,.sug.sel{background:var(--bg3)}
+.sug-name{font-weight:600;color:var(--tx)}
+.sug-addr{font-size:11px;color:var(--tx3);font-family:var(--mono)}
+/* summary */
+.wsum{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--bdr);border-bottom:1px solid var(--bdr);flex-shrink:0}
+.sc{background:var(--bg2);padding:10px;text-align:center;cursor:pointer;transition:background .12s}
+.sc:hover,.sc.on{background:var(--bg3)}
+.scn{font-family:var(--mono);font-size:22px}
+.scl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-top:1px;color:var(--tx3)}
+.s-go .scn{color:var(--G)}.s-warn .scn{color:var(--A)}.s-nogo .scn{color:var(--R)}
+/* spot list */
+.shdr{padding:12px 14px 5px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3);font-weight:700;flex-shrink:0}
+.srow{padding:10px 14px;border-bottom:1px solid var(--bdr);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;cursor:pointer;transition:background .12s}
+.srow:hover{background:var(--bg2)}.srow:active{background:var(--bg3)}
+.sname{font-size:13px;font-weight:700;margin-bottom:3px}
+.snum{color:var(--tx3);font-size:11px;font-family:var(--mono);margin-right:4px}
+.stag{font-size:9px;background:var(--bg3);color:var(--tx3);border-radius:3px;padding:1px 4px;vertical-align:middle;margin-left:4px}
+.sdata{font-family:var(--mono);font-size:11px;color:var(--tx2);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .wbar{height:2px;background:var(--bg3);border-radius:1px;margin-top:5px;overflow:hidden}
 .wbf{height:100%;border-radius:1px;transition:width .4s}
-.badge{font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.05em;white-space:nowrap}
-.bg-go{background:var(--gbg);color:var(--green);border:1px solid var(--gb)}
-.bg-warn{background:var(--abg);color:var(--amber);border:1px solid var(--ab)}
-.bg-nogo{background:var(--rbg);color:var(--red);border:1px solid var(--rb)}
-.bg-e{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
-.v-go{color:var(--green)}.v-warn{color:var(--amber)}.v-nogo{color:var(--red)}
-#panel-gps,#panel-custom{padding:12px;gap:10px}
-.card{background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);padding:12px}
-.card h3{font-size:12px;font-weight:700;margin-bottom:8px}
-.card p{font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.55}
-.gnr{padding:10px 12px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:8px;cursor:pointer;transition:background .12s}
-.gnr:hover{background:var(--bg2)}
-.db{font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:2px 6px;border-radius:4px}
-.cres{background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);padding:14px;margin:10px 0 0}
-.csg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
-.cs{background:var(--bg3);border-radius:8px;padding:10px;border:1px solid var(--border)}
-.csl{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
-.csv{font-family:var(--mono);font-size:20px}
-#panel-chat{padding:0}
-.cm{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-height:0}
-.msg{display:flex;flex-direction:column;max-width:88%;gap:2px}
-.msg.u{align-self:flex-end;align-items:flex-end}.msg.a{align-self:flex-start;align-items:flex-start}
-.bub{padding:9px 12px;border-radius:14px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
-.msg.u .bub{background:var(--green);color:#0a0f0d;border-radius:14px 14px 2px 14px}
-.msg.a .bub{background:var(--bg2);color:var(--text);border:1px solid var(--border2);border-radius:14px 14px 14px 2px}
-.mt{font-size:10px;color:var(--text3);font-family:var(--mono)}
-.cia{padding:8px 12px 0;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex-shrink:0}
-.cia::-webkit-scrollbar{display:none}
-.qb{background:var(--bg3);color:var(--text2);border:1px solid var(--border2);border-radius:20px;padding:5px 10px;font-size:11px;white-space:nowrap;cursor:pointer;font-family:var(--sans);transition:border-color .15s,color .15s}
-.qb:hover{border-color:var(--green);color:var(--green)}
-.cin{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0;padding-bottom:calc(10px + var(--sb))}
-.cta{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;color:var(--text);font-family:var(--sans);font-size:13px;padding:9px 12px;outline:none;resize:none;max-height:100px;overflow-y:auto;line-height:1.4}
-.cta:focus{border-color:var(--green)}.cta::placeholder{color:var(--text3)}
-.sb2{width:38px;height:38px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
-.sb2:disabled{opacity:.3;cursor:not-allowed}.sb2 svg{width:16px;height:16px;fill:#0a0f0d}
-.typing{display:flex;align-items:center;gap:4px;padding:6px 0}
-.td{width:6px;height:6px;border-radius:50%;background:var(--text3);animation:bl 1.2s infinite}
-.td:nth-child(2){animation-delay:.2s}.td:nth-child(3){animation-delay:.4s}
-@keyframes bl{0%,80%,100%{opacity:.2}40%{opacity:1}}
-#panel-settings{padding:12px;gap:10px}
-.scard{background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);padding:14px}
-.scard h3{font-size:12px;font-weight:700;margin-bottom:8px}
-.scard p{font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.55}
-.si{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none;margin-bottom:8px}
-.si:focus{border-color:var(--green)}
-.ss{font-size:11px;font-family:var(--mono);margin-top:6px}
-.ok{color:var(--green)}.err{color:var(--red)}
-a.ext{color:var(--green);text-decoration:none;font-size:12px}
+.bdg{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:.05em;white-space:nowrap}
+.bgo{background:var(--Gbg);color:var(--G);border:1px solid var(--Gbd)}
+.bwn{background:var(--Abg);color:var(--A);border:1px solid var(--Abd)}
+.bng{background:var(--Rbg);color:var(--R);border:1px solid var(--Rbd)}
+.bem{background:var(--bg3);color:var(--tx3);border:1px solid var(--bdr)}
+
+/* ── GPS PANEL ──────────────────────────────────── */
+#panel-gps{padding:14px;gap:10px}
+.card{background:var(--bg2);border-radius:var(--rd);border:1px solid var(--bdr);padding:14px}
+.card h3{font-size:13px;font-weight:700;margin-bottom:6px}
+.card p{font-size:12px;color:var(--tx2);line-height:1.6;margin-bottom:10px}
+.gc{font-family:var(--mono);font-size:11px;color:var(--tx3);margin-top:8px}
+.gsp{padding:10px;background:var(--bg3);border-radius:8px;border:1px solid var(--bdr);cursor:pointer;transition:border-color .12s}
+.gsp:hover{border-color:var(--G)}
+.dp{font-size:10px;font-family:var(--mono);color:var(--tx3);background:var(--bg2);padding:2px 6px;border-radius:4px;border:1px solid var(--bdr)}
+
+/* ── SETTINGS PANEL ─────────────────────────────── */
+#panel-settings{padding:14px;gap:10px}
+.si{width:100%;background:var(--bg3);border:1px solid var(--bdr2);border-radius:8px;color:var(--tx);font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none;margin-bottom:8px}
+.si:focus{border-color:var(--G)}
+.sok{color:var(--G)}.ser{color:var(--R)}
+a.ext{color:var(--G);text-decoration:none;font-size:12px}
 a.ext:hover{text-decoration:underline}
-.ic{background:var(--gbg);border:1px solid var(--gb);border-radius:var(--r);padding:14px;display:none}
-#mo{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:flex-end;z-index:100}
-#mo.open{display:flex}
-#md{background:var(--bg2);border-radius:16px 16px 0 0;border:1px solid var(--border2);padding:18px 16px;padding-bottom:calc(18px + var(--sb));width:100%;max-height:80vh;overflow-y:auto}
-.mh{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px}
-.mn{font-size:16px;font-weight:800;margin-bottom:3px}
-.ms{font-size:11px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
-.mg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-.mst{background:var(--bg3);border-radius:8px;padding:10px;border:1px solid var(--border)}
-.msl{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
-.msv{font-family:var(--mono);font-size:20px}
-.mac{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
-.ml{padding:8px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;cursor:pointer;transition:border-color .15s,color .15s;white-space:nowrap}
-.ml:hover{border-color:var(--green);color:var(--green)}
-.ml.nav{border-color:var(--bb);color:var(--blue);background:var(--bbg)}
-#nm{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:flex-end;z-index:200}
-#nm.open{display:flex}
-#nmi{background:var(--bg2);border-radius:16px 16px 0 0;border:1px solid var(--border2);padding:18px 16px;padding-bottom:calc(18px + var(--sb));width:100%}
-#nmi h3{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text2)}
-.no{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:opacity .15s}
-.no:last-of-type{border-bottom:none}.no:hover{opacity:.8}
-.noi{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-.non{font-size:14px;font-weight:700}.nod{font-size:11px;color:var(--text2);margin-top:1px}
-.ncan{text-align:center;padding:14px 0 0;font-size:13px;color:var(--text3);cursor:pointer}
-.ncan:hover{color:var(--text)}
-#toast{position:fixed;bottom:calc(20px + var(--sb));left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);border:1px solid var(--gb);color:var(--green);font-size:12px;font-weight:700;padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:300;white-space:nowrap}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.empty{padding:32px 16px;text-align:center;color:var(--text3);font-size:13px}
+.ic{background:var(--Gbg);border:1px solid var(--Gbd);border-radius:var(--rd);padding:14px;display:none}
+.ic h3{color:var(--G);font-size:13px;font-weight:700;margin-bottom:6px}
+.iclist{font-size:12px;color:var(--tx2);line-height:2.0;margin-bottom:0}
+
+/* ── MODAL ──────────────────────────────────────── */
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:flex-end;z-index:100}
+#ov.on{display:flex}
+#mo{background:var(--bg2);border-radius:16px 16px 0 0;border:1px solid var(--bdr2);padding:20px 16px;padding-bottom:calc(20px + var(--sb));width:100%;max-height:82vh;overflow-y:auto}
+.mhnd{width:36px;height:4px;background:var(--bdr2);border-radius:2px;margin:0 auto 14px}
+.mname{font-size:17px;font-weight:800;margin-bottom:3px}
+.msec{font-size:10px;color:var(--tx3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.mst{background:var(--bg3);border-radius:8px;padding:10px;border:1px solid var(--bdr)}
+.mstl{font-size:10px;color:var(--tx3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px}
+.mstv{font-family:var(--mono);font-size:20px}
+.navlbl{font-size:10px;color:var(--tx3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;font-weight:700;margin-top:14px}
+.navbtns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.nb{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:8px;color:var(--tx2);font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;transition:border-color .12s,color .12s;font-family:var(--sans)}
+.nb:hover{border-color:var(--G);color:var(--G)}
+.nb.pr{background:var(--Gbg);border-color:var(--Gbd);color:var(--G)}
+.nb.wz{background:var(--Bbg);border-color:var(--Bbd);color:var(--B)}
+.nb svg{width:14px;height:14px;fill:currentColor;flex-shrink:0}
+.mact{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.ml{padding:8px 14px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:8px;color:var(--tx2);font-size:12px;font-weight:700;text-decoration:none;cursor:pointer;font-family:var(--sans);transition:border-color .12s,color .12s;display:inline-block}
+.ml:hover{border-color:var(--G);color:var(--G)}
+.note-box{background:var(--Abg);border:1px solid var(--Abd);border-radius:8px;padding:8px 10px;font-size:11px;color:var(--A);margin-bottom:14px}
+
+/* ── TOAST ──────────────────────────────────────── */
+#toast{position:fixed;bottom:calc(20px + var(--sb));left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);border:1px solid var(--Gbd);color:var(--G);font-size:12px;font-weight:700;padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:200;white-space:nowrap;max-width:90vw;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.empty{padding:28px 16px;text-align:center;color:var(--tx3);font-size:13px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pls{animation:pulse 1.4s ease-in-out infinite}
 </style>
 </head>
 <body>
 <div id="app">
-  <div id="hdr">
-    <h1>Drone<span>Wind</span> <span style="font-size:11px;font-family:var(--mono);color:var(--text3);margin-left:4px">Sanluri</span></h1>
-    <div id="hs" style="font-size:11px;font-family:var(--mono);color:var(--text3)"></div>
+<div id="hdr">
+  <h1>Drone<span>Wind</span></h1>
+  <span id="hst" style="font-size:10px;font-family:var(--mono);color:var(--tx3)">Sanluri · DJI Mini 5 Pro</span>
+</div>
+<div id="cnt">
+<div id="tabs">
+  <div class="tab on" data-p="wind">Vento</div>
+  <div class="tab" data-p="gps">GPS</div>
+  <div class="tab" data-p="settings">Config</div>
+</div>
+
+<!-- ══ WIND ══════════════════════════════════════ -->
+<div id="panel-wind" class="panel on">
+  <div class="wctrl">
+    <div class="r1">
+      <input type="datetime-local" id="dti">
+      <button class="btn" id="chkbtn" onclick="checkAll()">Controlla</button>
+    </div>
+    <div class="r2">
+      <input type="text" id="srch" placeholder="Cerca posto: nome, indirizzo o lat,lng..." autocomplete="off" autocorrect="off"
+        oninput="onSrchInput()" onkeydown="onSrchKey(event)">
+      <button class="mic" id="micbtn" onclick="toggleMic()" title="Ricerca vocale">
+        <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm5.3 8.7a1 1 0 0 0-2 .3 3.3 3.3 0 0 1-6.6 0 1 1 0 0 0-2-.3 5.3 5.3 0 0 0 4.3 5.2V17H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.1A5.3 5.3 0 0 0 17.3 9.7z"/></svg>
+      </button>
+      <button class="btn sm" id="addbtn" onclick="addCustom()">+</button>
+    </div>
   </div>
-  <div id="content">
-    <div id="tabs">
-      <div class="tab active" data-panel="wind">Vento</div>
-      <div class="tab" data-panel="gps">GPS</div>
-      <div class="tab" data-panel="custom">Posto</div>
-      <div class="tab" data-panel="chat">Chat AI</div>
-      <div class="tab" data-panel="settings">Config</div>
+  <div id="suggestions"></div>
+  <div class="wsum" id="wsum" style="display:none">
+    <div class="sc s-go" id="sg" onclick="setF('go')"><div class="scn" id="cg">0</div><div class="scl">Go</div></div>
+    <div class="sc s-warn" id="sw" onclick="setF('warn')"><div class="scn" id="cw">0</div><div class="scl">Attenzione</div></div>
+    <div class="sc s-nogo" id="sn" onclick="setF('nogo')"><div class="scn" id="cn">0</div><div class="scl">No go</div></div>
+  </div>
+  <div id="slist" style="flex:1;overflow-y:auto"></div>
+</div>
+
+<!-- ══ GPS ═══════════════════════════════════════ -->
+<div id="panel-gps" class="panel">
+  <div class="card">
+    <h3>Posizione attuale</h3>
+    <p>Trova i 5 spot più vicini a te e controlla il vento in tempo reale nella tua posizione esatta.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="doGPS()">Rileva GPS</button>
+      <button class="btn sec" onclick="windHere()">Vento qui adesso</button>
     </div>
-    <div id="panel-wind" class="panel active">
-      <div class="ctrls">
-        <input type="datetime-local" id="dti">
-        <button class="btn" id="cb" onclick="checkAll()">Controlla</button>
-      </div>
-      <div class="sumbar" id="sb" style="display:none">
-        <div class="sc s-go" id="sg" onclick="setF('go')"><div class="scn" id="cg">0</div><div class="scl">Go</div></div>
-        <div class="sc s-warn" id="sw" onclick="setF('warn')"><div class="scn" id="cw">0</div><div class="scl">Attenzione</div></div>
-        <div class="sc s-nogo" id="sn" onclick="setF('nogo')"><div class="scn" id="cn">0</div><div class="scl">No go</div></div>
-      </div>
-      <div id="sl"></div>
-    </div>
-    <div id="panel-gps" class="panel">
-      <div class="card">
-        <h3>Posizione attuale</h3>
-        <p>Trova gli spot piu vicini e controlla il vento sulla tua posizione GPS.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn" onclick="getGPS()">Rileva posizione</button>
-          <button class="btn sec" id="gwb" onclick="checkGPSWind()" style="display:none">Vento qui</button>
-        </div>
-        <div id="gc" style="font-size:11px;font-family:var(--mono);color:var(--text3);margin-top:8px"></div>
-      </div>
-      <div id="gwr"></div>
-      <div id="gnr"></div>
-    </div>
-    <div id="panel-custom" class="panel">
-      <div class="card">
-        <h3>Controlla vento in un posto a scelta</h3>
-        <p>Scrivi nome luogo, indirizzo o coordinate (lat, lng).</p>
-        <input type="text" id="cp" placeholder="es. Cagliari, o 39.634,8.854" style="margin-bottom:8px">
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn" onclick="checkCP()">Controlla vento</button>
-          <button class="btn sec" onclick="addCP()">+ Aggiungi agli spot</button>
-        </div>
-      </div>
-      <div id="cr"></div>
-    </div>
-    <div id="panel-chat" class="panel">
-      <div class="cm" id="cmsg">
-        <div class="msg a"><div class="bub">Ciao Mauro! Dimmi quando sei libero e dove ti trovi — ti dico dove puoi volare.</div></div>
-      </div>
-      <div class="cia">
-        <button class="qb" onclick="qa('Dove posso andare adesso?')">Dove vado?</button>
-        <button class="qb" onclick="qa('Qual e il miglior orario oggi per volare?')">Miglior orario</button>
-        <button class="qb" onclick="qa('Controlla il vento per tutti gli spot vicino Sanluri')">Vento spot</button>
-        <button class="qb" onclick="qa('Regole ENAC per il mio drone 249g')">Regole ENAC</button>
-      </div>
-      <div class="cin">
-        <textarea class="cta" id="ci" placeholder="es. alle 19 sono libero a Sanluri, posso uscire?" rows="1" onkeydown="hk(event)" oninput="ar(this)"></textarea>
-        <button class="sb2" id="csb" onclick="sendChat()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
-      </div>
-    </div>
-    <div id="panel-settings" class="panel">
-      <div class="ic" id="icard">
-        <h3 style="color:var(--green);font-size:13px;font-weight:700;margin-bottom:6px">Installa come app</h3>
-        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Aggiungi DroneWind alla schermata home.</p>
-        <button class="btn" onclick="installPWA()">Installa</button>
-      </div>
-      <div class="scard">
-        <h3>API Key Anthropic (Chat AI)</h3>
-        <p>Per la chat AI serve una API key gratuita. <a class="ext" href="https://console.anthropic.com/keys" target="_blank">Ottienila qui</a><br>Salvata solo sul tuo dispositivo.</p>
-        <input class="si" type="password" id="ki" placeholder="sk-ant-api03-..." autocomplete="off">
-        <div style="display:flex;gap:8px"><button class="btn" onclick="saveKey()">Salva</button><button class="btn sec" onclick="clearKey()">Rimuovi</button></div>
-        <div class="ss" id="ks"></div>
-      </div>
-      <div class="scard">
-        <h3>Drone</h3>
-        <p style="font-family:var(--mono);font-size:12px;line-height:2;margin-bottom:0">DJI Mini 5 Pro · 249g · Cat. Aperta A1 · No patentino<br>Operatore UAS ENAC registrato · QR code sul drone<br>Vento max: <span style="color:var(--amber)">35 km/h</span> · Raffiche max: <span style="color:var(--amber)">40 km/h</span><br>Quota max: <span style="color:var(--green)">120m AGL</span> · VLOS obbligatorio</p>
-      </div>
-      <div class="scard">
-        <h3>Fonti</h3>
-        <p style="margin-bottom:8px">Vento: Open-Meteo (ECMWF) · 10m e 80m reali, 50m interpolato</p>
-        <a class="ext" href="https://www.d-flight.it/new_portal/services/mappe/" target="_blank">D-Flight ENAC</a>&nbsp;&nbsp;
-        <a class="ext" href="https://droneskycheck-d0136.web.app/?lat=39.5648&lng=8.8942" target="_blank">Drone Sky Check</a>
-      </div>
+    <div class="gc" id="gc"></div>
+  </div>
+  <div id="gres"></div>
+</div>
+
+<!-- ══ SETTINGS ══════════════════════════════════ -->
+<div id="panel-settings" class="panel">
+  <div class="ic" id="ic">
+    <h3>Installa come app</h3>
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:10px">Tocca per installare DroneWind come app nativa.</p>
+    <button class="btn" onclick="doPWA()">Installa app</button>
+  </div>
+  <div class="card">
+    <h3>Come installare</h3>
+    <p class="iclist">
+      <strong style="color:var(--tx)">Android (Chrome):</strong> Menu ⋮ → Aggiungi a schermata Home<br>
+      <strong style="color:var(--tx)">PC Chrome/Edge:</strong> icona ⊕ nella barra URL → Installa<br>
+      <strong style="color:var(--tx)">iOS Safari:</strong> Condividi → Aggiungi a schermata Home<br>
+      <strong style="color:var(--tx)">PC Firefox:</strong> estensione "Progressive Web Apps for Firefox"
+    </p>
+  </div>
+  <div class="card">
+    <h3>Fix 404 su Android / GitHub Pages</h3>
+    <p>Se ottieni 404, assicurati di accedere all'URL esatto:<br>
+    <strong style="color:var(--G);font-family:var(--mono);font-size:11px">https://TUOUSERNAME.github.io/drone-wind/</strong><br>
+    (con lo slash finale). Se il repo si chiama diversamente, usa il nome esatto del repo.<br><br>
+    Oppure rinomina il repo in <strong style="color:var(--G)">TUOUSERNAME.github.io</strong> e l'URL diventa semplicemente <strong style="color:var(--G);font-family:var(--mono);font-size:11px">https://TUOUSERNAME.github.io</strong></p>
+  </div>
+  <div class="card">
+    <h3>Drone</h3>
+    <p style="font-family:var(--mono);font-size:12px;line-height:1.9">
+      DJI Mini 5 Pro · 249g · Cat. Aperta A1<br>
+      Operatore UAS ENAC registrato ✓<br>
+      Vento max: <span style="color:var(--A)">35 km/h</span> · Raffiche: <span style="color:var(--A)">40 km/h</span><br>
+      Quota max: <span style="color:var(--G)">120m AGL</span> · VLOS obbligatorio
+    </p>
+  </div>
+  <div class="card">
+    <h3>Fonti</h3>
+    <p style="margin-bottom:10px">Meteo: Open-Meteo (ECMWF) · Geocoding: Nominatim OSM + Google Maps<br>Vento 50m: interpolato da 10m + 80m</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <a class="ext" href="https://www.d-flight.it/new_portal/services/mappe/" target="_blank">D-Flight →</a>
+      <a class="ext" href="https://droneskycheck-d0136.web.app/?lat=39.5648&lng=8.8942" target="_blank">Drone Sky Check →</a>
     </div>
   </div>
 </div>
-<div id="mo" onclick="cMod(event)"><div id="md"><div class="mh"></div><div id="mc"></div></div></div>
-<div id="nm" onclick="cNav(event)"><div id="nmi"><h3 id="nt">Naviga verso...</h3><div id="no"></div><div class="ncan" onclick="cNav()">Annulla</div></div></div>
+</div>
+</div>
+
+<div id="ov" onclick="cmClose(event)"><div id="mo"><div class="mhnd"></div><div id="mc"></div></div></div>
 <div id="toast"></div>
+
 <script>
-const SPOTS=[
+// ══ SPOTS ════════════════════════════════════════════════════
+const FS=[
   {id:1,sec:"Sanluri centro",name:"Casa — Via M. Buonarrotti 2",lat:39.5648,lng:8.8942},
-  {id:2,sec:"Sanluri centro",name:"Villa Comunale",lat:39.564,lng:8.896},
+  {id:2,sec:"Sanluri centro",name:"Villa Comunale",lat:39.5640,lng:8.8960},
   {id:3,sec:"Sanluri centro",name:"Castello Eleonora d'Arborea",lat:39.5633,lng:8.8979,note:"Bene culturale MiC"},
   {id:4,sec:"Sanluri centro",name:"Piazza San Pietro",lat:39.5612,lng:8.8998},
   {id:5,sec:"Sanluri centro",name:"Chiesa San Lorenzo",lat:39.5628,lng:8.8965},
   {id:6,sec:"Sanluri centro",name:"Chiesa Sacro Cuore — Strovina",lat:39.5238,lng:8.8483},
   {id:7,sec:"Sanluri centro",name:"Chiesa Sant'Antiogu nou",lat:39.5745,lng:8.9094},
-  {id:8,sec:"Sanluri centro",name:"Chiesa Sant'Antiogu becciu",lat:39.6069,lng:8.889},
-  {id:9,sec:"Sanluri centro",name:"Campo sportivo",lat:39.567,lng:8.885},
-  {id:10,sec:"Sanluri centro",name:"Periferia nord — campi",lat:39.572,lng:8.89},
-  {id:11,sec:"Sanluri centro",name:"Zona artigianale est",lat:39.565,lng:8.908},
-  {id:12,sec:"Tragitto Mogoro-Sanluri",name:"Castello Monreale — Sardara",lat:39.595,lng:8.7932,note:"Bene culturale MiC"},
-  {id:13,sec:"Tragitto Mogoro-Sanluri",name:"Nuraghe Ortu Comidu",lat:39.5897,lng:8.8444},
-  {id:14,sec:"Tragitto Mogoro-Sanluri",name:"Campagna SP4 — Terme Sardara",lat:39.6139,lng:8.7858},
-  {id:15,sec:"Tragitto Mogoro-Sanluri",name:"Nuraghe Arrubiu — Sardara",lat:39.6174,lng:8.7628},
-  {id:16,sec:"Tragitto Mogoro-Sanluri",name:"Campi SS131 — Mogoro/Sardara",lat:39.64,lng:8.77},
-  {id:17,sec:"Gite dedicate",name:"Nuraghe Genna Maria — Collinas",lat:39.6344,lng:8.8544},
-  {id:18,sec:"Gite dedicate",name:"Nuraghe Cuccuru de su Casu",lat:39.5968,lng:8.874},
-  {id:19,sec:"Gite dedicate",name:"Parco della Giara — Tuili",lat:39.7319,lng:8.9743,note:"Verificare regolamento parco"},
-  {id:20,sec:"Gite dedicate",name:"Su Nuraxi — Barumini (UNESCO)",lat:39.7059,lng:8.9907,note:"Autorizzazione Fondazione Barumini"},
+  {id:8,sec:"Sanluri centro",name:"Campo sportivo",lat:39.5670,lng:8.8850},
+  {id:9,sec:"Sanluri centro",name:"Periferia nord — campi",lat:39.5720,lng:8.8900},
+  {id:10,sec:"Sanluri centro",name:"Zona artigianale est",lat:39.5650,lng:8.9080},
+  {id:11,sec:"Tragitto Mogoro\u2192Sanluri",name:"Castello Monreale — Sardara",lat:39.5950,lng:8.7932,note:"Bene culturale MiC"},
+  {id:12,sec:"Tragitto Mogoro\u2192Sanluri",name:"Nuraghe Ortu Comidu",lat:39.5897,lng:8.8444},
+  {id:13,sec:"Tragitto Mogoro\u2192Sanluri",name:"Campagna SP4 — Terme Sardara",lat:39.6139,lng:8.7858},
+  {id:14,sec:"Tragitto Mogoro\u2192Sanluri",name:"Nuraghe Arrubiu — Sardara",lat:39.6174,lng:8.7628},
+  {id:15,sec:"Tragitto Mogoro\u2192Sanluri",name:"Campi SS131 — Mogoro/Sardara",lat:39.6400,lng:8.7700},
+  {id:16,sec:"Gite dedicate",name:"Chiesa Santu Antiogu Becciu",lat:39.6069,lng:8.8890},
+  {id:17,sec:"Gite dedicate",name:"Nuraghe Genna Maria — Collinas \u2b50",lat:39.6344,lng:8.8544},
+  {id:18,sec:"Gite dedicate",name:"Nuraghe Cuccuru de su Casu",lat:39.5968,lng:8.8740},
+  {id:19,sec:"Gite dedicate",name:"Parco della Giara — Tuili",lat:39.7319,lng:8.9743,note:"Parco naturale"},
+  {id:20,sec:"Gite dedicate",name:"Su Nuraxi — Barumini",lat:39.7059,lng:8.9907,note:"UNESCO"},
 ];
-const SECS=[...new Set(SPOTS.map(s=>s.sec))];
+let CS=JSON.parse(localStorage.getItem('cs')||'[]');
+let WD={},AF=null,DI=null,MP=null,SRec=null;
+let sugData=[],sugIdx=-1,srchDebounce=null;
+
+function AS(){return[...FS,...CS];}
+function secs(){return[...new Set(AS().map(s=>s.sec))];}
+function ck(lat,lng){return(+lat).toFixed(3)+','+(+lng).toFixed(3);}
 const MV=35,MG=40;
-let WD={},AF=null,CH=[],DI=null,GPS=null,CPPOS=null,CPWD=null,GPSWD=null;
 
 function init(){
   const n=new Date();n.setMinutes(0,0,0);
-  document.getElementById('dti').value=fDT(n);
-  renderSpots();loadKeyStatus();registerSW();
-  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
-    document.querySelectorAll('.tab,.panel').forEach(e=>e.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('panel-'+t.dataset.panel).classList.add('active');
-  }));
+  document.getElementById('dti').value=fdt(n);
+  renderSpots();regSW();
 }
-function fDT(d){const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:00`}
-function ck(a,b){return`${(+a).toFixed(2)},${(+b).toFixed(2)}`}
+function fdt(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':00';}
 
+// tabs
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab,.panel').forEach(e=>e.classList.remove('on'));
+    t.classList.add('on');
+    document.getElementById('panel-'+t.dataset.p).classList.add('on');
+    hideSug();
+  });
+});
+
+// ══ WIND ════════════════════════════════════════════════════
 async function fw(lat,lng,ds,hr){
-  const u=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=windspeed_10m,windspeed_80m,windgusts_10m,winddirection_10m&windspeed_unit=kmh&timezone=Europe%2FRome&start_date=${ds}&end_date=${ds}`;
-  const r=await fetch(u);if(!r.ok)throw new Error('err');
-  const d=await r.json();const T=d.hourly.time;
-  let i=T.findIndex(t=>parseInt(t.split('T')[1])===hr);if(i<0)i=0;
-  const v1=d.hourly.windspeed_10m[i]||0,v8=d.hourly.windspeed_80m[i]||v1*1.2,g=d.hourly.windgusts_10m[i]||0,dr=d.hourly.winddirection_10m[i]||0;
-  return{v10:Math.round(v1),v50:Math.round(v1+(v8-v1)*(40/70)),v80:Math.round(v8),gusts:Math.round(g),dir:Math.round(dr)};
+  const u='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lng+'&hourly=windspeed_10m,windspeed_80m,windgusts_10m,winddirection_10m&windspeed_unit=kmh&timezone=Europe%2FRome&start_date='+ds+'&end_date='+ds;
+  const r=await fetch(u);if(!r.ok)throw 0;
+  const d=await r.json();
+  const ts=d.hourly.time;
+  let i=ts.findIndex(t=>parseInt(t.split('T')[1])===hr);if(i<0)i=0;
+  const v10=d.hourly.windspeed_10m[i]||0,v80=d.hourly.windspeed_80m[i]||v10*1.2,g=d.hourly.windgusts_10m[i]||0,dr=d.hourly.winddirection_10m[i]||0;
+  const v50=v10+(v80-v10)*(40/70);
+  return{v10:Math.round(v10),v50:Math.round(v50),g:Math.round(g),dir:Math.round(dr)};
 }
-function getDTP(){
-  const d=new Date(document.getElementById('dti').value),p=n=>String(n).padStart(2,'0');
-  return{ds:`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`,hr:d.getHours()};
-}
+
 async function checkAll(){
-  const b=document.getElementById('cb');b.disabled=true;b.textContent='...';WD={};
-  const{ds,hr}=getDTP(),u={};
-  SPOTS.forEach(s=>{const k=ck(s.lat,s.lng);if(!u[k])u[k]={lat:s.lat,lng:s.lng}});
-  await Promise.all(Object.entries(u).map(async([k,{lat,lng}])=>{try{WD[k]=await fw(lat,lng,ds,hr)}catch{WD[k]=null}}));
-  renderSpots();updSum();b.disabled=false;b.textContent='Aggiorna';
+  const b=document.getElementById('chkbtn');
+  b.disabled=true;b.textContent='...';WD={};renderSpots();hideSug();
+  const dt=new Date(document.getElementById('dti').value);
+  const p=n=>String(n).padStart(2,'0');
+  const ds=dt.getFullYear()+'-'+p(dt.getMonth()+1)+'-'+p(dt.getDate());
+  const hr=dt.getHours();
+  const uq={};AS().forEach(s=>{const k=ck(s.lat,s.lng);if(!uq[k])uq[k]={lat:s.lat,lng:s.lng};});
+  await Promise.all(Object.entries(uq).map(async([k,{lat,lng}])=>{
+    try{WD[k]=await fw(lat,lng,ds,hr);}catch{WD[k]=null;}
+  }));
+  renderSpots();updSum();
+  b.disabled=false;b.textContent='Aggiorna';
 }
-function st(r){if(!r)return null;if(r.v50>MV||r.gusts>MG)return'nogo';if(r.v50>25||r.gusts>30)return'warn';return'go'}
+
+function st(r){if(!r)return null;if(r.v50>MV||r.g>MG)return'nogo';if(r.v50>25||r.g>30)return'warn';return'go';}
+
 function updSum(){
   const c={go:0,warn:0,nogo:0};
-  SPOTS.forEach(s=>{const x=st(WD[ck(s.lat,s.lng)]);if(x)c[x]++});
-  ['go','warn','nogo'].forEach(k=>{document.getElementById(k[0]+(k==='nogo'?'n':k[1])).textContent=c[k]});
-  document.getElementById('cg').textContent=c.go;
-  document.getElementById('cw').textContent=c.warn;
-  document.getElementById('cn').textContent=c.nogo;
-  document.getElementById('sb').style.display='';
+  AS().forEach(s=>{const r=WD[ck(s.lat,s.lng)];const x=st(r);if(x)c[x]++;});
+  ['go','warn','nogo'].forEach(k=>document.getElementById(k[0]=='g'?'cg':k[0]=='w'?'cw':'cn').textContent=c[k]);
+  document.getElementById('wsum').style.display='';
 }
+
 function setF(f){
   AF=AF===f?null:f;
-  document.querySelectorAll('.sc').forEach(c=>c.classList.remove('act'));
-  if(AF)document.getElementById('s'+f[0]).classList.add('act');
+  document.querySelectorAll('.sc').forEach(c=>c.classList.remove('on'));
+  if(AF)document.getElementById('s'+f[0]).classList.add('on');
   renderSpots();
 }
-function arr(d){return['↑','↗','→','↘','↓','↙','←','↖'][Math.round(((d+180)%360)/45)%8]}
+
+function d2a(deg){const a=['↑','↗','→','↘','↓','↙','←','↖'];return a[Math.round(((deg+180)%360)/45)%8];}
 
 function renderSpots(){
-  const el=document.getElementById('sl'),hw=Object.keys(WD).length>0;
+  const el=document.getElementById('slist');
+  const hd=Object.keys(WD).length>0;
   let h='';
-  SECS.forEach(sec=>{
-    let sp=SPOTS.filter(s=>s.sec===sec);
-    if(AF&&hw)sp=sp.filter(s=>st(WD[ck(s.lat,s.lng)])===AF);
-    if(!sp.length)return;
-    h+=`<div class="sh">${sec}</div>`;
-    sp.forEach(s=>{
-      const r=WD[ck(s.lat,s.lng)],x=st(r);
-      let badge='<span class="badge bg-e">—</span>',data='<span style="color:var(--text3);font-size:11px">premi Controlla</span>';
+  secs().forEach(sec=>{
+    let spots=AS().filter(s=>s.sec===sec);
+    if(AF&&hd)spots=spots.filter(s=>st(WD[ck(s.lat,s.lng)])===AF);
+    if(!spots.length)return;
+    h+='<div class="shdr">'+sec+'</div>';
+    spots.forEach(sp=>{
+      const r=WD[ck(sp.lat,sp.lng)];const x=st(r);
+      const ct=sp.c?'<span class="stag">custom</span>':'';
+      let bdg='<span class="bdg bem">—</span>',dh='';
       if(r){
-        const vc=r.v50>MV?'v-nogo':r.v50>25?'v-warn':'v-go',gc=r.gusts>MG?'v-nogo':r.gusts>30?'v-warn':'';
-        const pct=Math.min(100,r.v50/MV*100),bc=r.v50>MV?'var(--red)':r.v50>25?'var(--amber)':'var(--green)';
-        const bl=x==='go'?'GO':x==='warn'?'WARN':'NO GO',bc2=x==='go'?'bg-go':x==='warn'?'bg-warn':'bg-nogo';
-        badge=`<span class="badge ${bc2}">${bl}</span>`;
-        data=`<div class="sd"><span>10m: <strong>${r.v10}</strong></span><span class="${vc}">50m: <strong>${r.v50} km/h</strong></span><span class="${gc}">raff: <strong>${r.gusts}</strong></span><span>${arr(r.dir)} ${r.dir}°</span></div><div class="wbar"><div class="wbf" style="width:${pct}%;background:${bc}"></div></div>`;
-      }
-      h+=`<div class="sr" onclick="openM(${s.id})"><div><div class="sn"><span class="snum">#${s.id}</span>${s.name}${s.note?'<span style="font-size:10px;color:var(--amber)">⚠</span>':''}</div>${data}</div><div>${badge}</div></div>`;
+        const vc=r.v50>MV?'var(--R)':r.v50>25?'var(--A)':'var(--G)';
+        const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':'var(--tx2)';
+        const pct=Math.min(100,(r.v50/MV)*100);
+        const bc=r.v50>MV?'var(--R)':r.v50>25?'var(--A)':'var(--G)';
+        dh='<div class="sdata"><span>10m:<b>'+r.v10+'</b></span><span style="color:'+vc+'">50m:<b>'+r.v50+'</b></span><span style="color:'+gc+'">↑<b>'+r.g+'</b></span><span>'+d2a(r.dir)+' '+r.dir+'°</span></div><div class="wbar"><div class="wbf" style="width:'+pct+'%;background:'+bc+'"></div></div>';
+        const bcl=x==='go'?'bgo':x==='warn'?'bwn':'bng';
+        bdg='<span class="bdg '+bcl+'">'+(x==='go'?'GO':x==='warn'?'WARN':'NO GO')+'</span>';
+      }else if(!hd){dh='<span style="font-size:11px;color:var(--tx3);font-family:var(--mono)">premi Controlla</span>';}
+      else{dh='<span style="font-size:11px;color:var(--tx3);font-family:var(--mono)" class="pls">caricamento...</span>';}
+      const tid=(sp.c?'c':'f')+sp.id;
+      h+='<div class="srow" onclick="openM(\''+tid+'\')"><div><div class="sname"><span class="snum">'+sp.id+'.</span>'+sp.name+ct+'</div>'+dh+'</div><div>'+bdg+'</div></div>';
     });
   });
-  el.innerHTML=h||'<div class="empty">Nessuno spot per il filtro</div>';
+  el.innerHTML=h||'<div class="empty">Nessuno spot corrisponde al filtro</div>';
 }
 
-function openM(id){
-  const s=SPOTS.find(x=>x.id===id);if(!s)return;
-  const r=WD[ck(s.lat,s.lng)],x=st(r);
-  const du=`https://droneskycheck-d0136.web.app/?lat=${s.lat}&lng=${s.lng}`;
-  let stats='<p style="color:var(--text3);font-size:13px;margin-bottom:14px">Premi Controlla per i dati vento</p>';
-  if(r){
-    const vc=r.v50>MV?'v-nogo':r.v50>25?'v-warn':'v-go',gc=r.gusts>MG?'v-nogo':r.gusts>30?'v-warn':'';
-    const bl=x==='go'?'✓ Puoi volare':x==='warn'?'⚠ Attenzione':'✕ Non volare',bc=x==='go'?'bg-go':x==='warn'?'bg-warn':'bg-nogo';
-    stats=`<div style="margin-bottom:12px"><span class="badge ${bc}" style="font-size:13px;padding:6px 14px">${bl}</span></div>
-    <div class="mg">
-      <div class="mst"><div class="msl">Vento 10m</div><div class="msv">${r.v10} <small style="font-size:12px;color:var(--text3)">km/h</small></div></div>
-      <div class="mst"><div class="msl">Vento 50m</div><div class="msv ${vc}">${r.v50} <small style="font-size:12px">km/h</small></div></div>
-      <div class="mst"><div class="msl">Raffiche</div><div class="msv ${gc}">${r.gusts} <small style="font-size:12px;color:var(--text3)">km/h</small></div></div>
-      <div class="mst"><div class="msl">Direzione</div><div class="msv">${arr(r.dir)} ${r.dir}°</div></div>
-    </div>`;
+// ══ SEARCH ══════════════════════════════════════════════════
+function onSrchInput(){
+  clearTimeout(srchDebounce);
+  const q=document.getElementById('srch').value.trim();
+  if(q.length<2){hideSug();return;}
+  srchDebounce=setTimeout(()=>doSearch(q),400);
+}
+
+async function doSearch(q){
+  // 1. check if lat,lng
+  const cm=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if(cm){
+    const lat=parseFloat(cm[1]),lng=parseFloat(cm[2]);
+    sugData=[{name:'Coordinate: '+lat.toFixed(5)+', '+lng.toFixed(5),addr:'Aggiungi come spot custom',lat,lng,isCoord:true}];
+    renderSug();return;
   }
-  const nn=s.note?`<div style="padding:8px 10px;background:var(--abg);border:1px solid var(--ab);border-radius:8px;font-size:11px;color:var(--amber);margin-bottom:12px">⚠ ${s.note}</div>`:'';
-  document.getElementById('mc').innerHTML=`<div class="mn">${s.name}</div><div class="ms">${s.sec} · ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}</div>${nn}${stats}<div class="mac"><button class="ml nav" onclick="oNav(${s.lat},${s.lng},'${s.name.replace(/'/g,"\\'")}')">🧭 Naviga</button><a class="ml" href="${du}" target="_blank">🗺 Sky Check</a><button class="ml" onclick="chatAbout(${s.id})">💬 Claude</button></div>`;
-  document.getElementById('mo').classList.add('open');
+  // 2. search in existing spots first
+  const local=AS().filter(s=>s.name.toLowerCase().includes(q.toLowerCase())).map(s=>({name:s.name,addr:s.sec,lat:s.lat,lng:s.lng,isSpot:true,spotId:s.id}));
+  // 3. nominatim geocoding (broad, no restrict to Sardegna if query is specific)
+  try{
+    const terms=[q+' Sardegna', q+' Sanluri', q];
+    // use first term if query doesn't already mention a place
+    const searchQ=q.toLowerCase().includes('sardegna')||q.toLowerCase().includes('sanluri')||q.toLowerCase().includes('sardara')?q:q+' Sardegna';
+    const url='https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(searchQ)+'&format=json&limit=5&accept-language=it&countrycodes=it';
+    const res=await fetch(url,{headers:{'User-Agent':'DroneWind/1.0'}});
+    const data=await res.json();
+    const remote=data.map(d=>({
+      name:d.name||d.display_name.split(',')[0],
+      addr:d.display_name.split(',').slice(1,3).join(', ').trim(),
+      lat:parseFloat(d.lat),lng:parseFloat(d.lon)
+    }));
+    // merge: local first, then remote (deduplicate by proximity)
+    const merged=[...local];
+    remote.forEach(r=>{
+      const dup=merged.some(m=>Math.abs(m.lat-r.lat)<0.001&&Math.abs(m.lng-r.lng)<0.001);
+      if(!dup)merged.push(r);
+    });
+    sugData=merged.slice(0,6);
+  }catch{
+    sugData=local.slice(0,5);
+  }
+  renderSug();
 }
-function cMod(e){if(e.target===document.getElementById('mo')||e.type==='x')document.getElementById('mo').classList.remove('open')}
 
-function oNav(lat,lng,name){
-  document.getElementById('nt').textContent='Naviga verso: '+name;
-  document.getElementById('no').innerHTML=`
-    <div class="no" onclick="goN('gmaps','${lat}','${lng}')"><div class="noi" style="background:#e8f5e9">🟢</div><div><div class="non">Google Maps</div><div class="nod">Percorso GPS con calcolo traffico</div></div></div>
-    <div class="no" onclick="goN('waze','${lat}','${lng}')"><div class="noi" style="background:#e3f2fd">🔵</div><div><div class="non">Waze</div><div class="nod">Navigazione con traffico live</div></div></div>
-    <div class="no" onclick="goN('apple','${lat}','${lng}')"><div class="noi" style="background:#f3e5f5">🟣</div><div><div class="non">Apple Maps</div><div class="nod">Per iPhone / macOS</div></div></div>
-    <div class="no" onclick="goN('geo','${lat}','${lng}')"><div class="noi" style="background:#fff8e1">🟡</div><div><div class="non">App predefinita Android</div><div class="nod">Il sistema sceglie l'app</div></div></div>`;
-  document.getElementById('nm').classList.add('open');
-}
-function cNav(e){if(!e||e.target===document.getElementById('nm')||e.target.classList.contains('ncan'))document.getElementById('nm').classList.remove('open')}
-function goN(app,lat,lng){
-  const urls={gmaps:`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,waze:`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,apple:`https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`,geo:`geo:${lat},${lng}?q=${lat},${lng}`};
-  window.open(urls[app],'_blank');
-  document.getElementById('nm').classList.remove('open');
+function renderSug(){
+  const el=document.getElementById('suggestions');
+  if(!sugData.length){hideSug();return;}
+  el.innerHTML=sugData.map((s,i)=>
+    '<div class="sug'+(i===sugIdx?' sel':'')+'" onclick="selectSug('+i+')" onmouseenter="sugIdx='+i+';renderSug()">'+
+    '<span class="sug-name">'+(s.isSpot?'📍 ':s.isCoord?'🎯 ':'🔍 ')+esc(s.name)+'</span>'+
+    '<span class="sug-addr">'+esc(s.addr||'')+'</span></div>'
+  ).join('');
+  el.style.display='flex';
 }
 
-function getGPS(){
-  if(!navigator.geolocation){showT('GPS non disponibile');return}
-  navigator.geolocation.getCurrentPosition(p=>{
-    GPS={lat:p.coords.latitude,lng:p.coords.longitude};
-    document.getElementById('gc').textContent=`${GPS.lat.toFixed(5)}, ${GPS.lng.toFixed(5)}`;
-    document.getElementById('gwb').style.display='';
-    renderGPSNear();
-  },()=>showT('Impossibile rilevare posizione'));
+function hideSug(){
+  document.getElementById('suggestions').style.display='none';
+  sugData=[];sugIdx=-1;
 }
-async function checkGPSWind(){
-  if(!GPS)return;
-  const b=document.getElementById('gwb');b.disabled=true;b.textContent='...';
-  const{ds,hr}=getDTP();
-  try{GPSWD=await fw(GPS.lat,GPS.lng,ds,hr);renderGPSWind()}catch{showT('Errore meteo')}
-  b.disabled=false;b.textContent='Vento qui';
+
+function onSrchKey(e){
+  if(!sugData.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();sugIdx=Math.min(sugIdx+1,sugData.length-1);renderSug();}
+  else if(e.key==='ArrowUp'){e.preventDefault();sugIdx=Math.max(sugIdx-1,0);renderSug();}
+  else if(e.key==='Enter'){e.preventDefault();if(sugIdx>=0)selectSug(sugIdx);else if(sugData.length)selectSug(0);}
+  else if(e.key==='Escape'){hideSug();}
 }
-function renderGPSWind(){
-  if(!GPSWD)return;
-  const r=GPSWD,x=st(r),vc=r.v50>MV?'v-nogo':r.v50>25?'v-warn':'v-go',gc=r.gusts>MG?'v-nogo':r.gusts>30?'v-warn':'';
-  const bl=x==='go'?'✓ Puoi volare qui':x==='warn'?'⚠ Vento sostenuto':'✕ Troppo vento',bc=x==='go'?'bg-go':x==='warn'?'bg-warn':'bg-nogo';
-  document.getElementById('gwr').innerHTML=`<div class="cres"><div style="font-size:12px;font-weight:700;margin-bottom:10px">Vento sulla tua posizione</div><div style="margin-bottom:10px"><span class="badge ${bc}" style="font-size:13px;padding:6px 14px">${bl}</span></div><div class="csg"><div class="cs"><div class="csl">10m</div><div class="csv">${r.v10} <small style="font-size:12px;color:var(--text3)">km/h</small></div></div><div class="cs"><div class="csl">50m</div><div class="csv ${vc}">${r.v50} <small>km/h</small></div></div><div class="cs"><div class="csl">Raffiche</div><div class="csv ${gc}">${r.gusts} <small style="font-size:12px;color:var(--text3)">km/h</small></div></div><div class="cs"><div class="csl">Direzione</div><div class="csv">${arr(r.dir)} ${r.dir}°</div></div></div><button class="ml nav" onclick="oNav(${GPS.lat},${GPS.lng},'Posizione attuale')">🧭 Naviga qui</button></div>`;
+
+function selectSug(i){
+  const s=sugData[i];
+  if(!s)return;
+  if(s.isSpot){
+    // scroll to it or open modal
+    hideSug();document.getElementById('srch').value='';
+    openM((FS.find(x=>x.id===s.spotId)?'f':'c')+s.spotId);
+    return;
+  }
+  document.getElementById('srch').value=s.name;
+  hideSug();
+  // pre-fill for adding
+  document.getElementById('srch').dataset.lat=s.lat;
+  document.getElementById('srch').dataset.lng=s.lng;
+  document.getElementById('srch').dataset.rname=s.name;
+  toast('Premi + per aggiungere questo posto');
 }
-function hav(a,b,c,d){const R=6371,dd=Math.PI/180,e=Math.sin((c-a)*dd/2)**2+Math.cos(a*dd)*Math.cos(c*dd)*Math.sin((d-b)*dd/2)**2;return R*2*Math.atan2(Math.sqrt(e),Math.sqrt(1-e))}
-function renderGPSNear(){
-  if(!GPS)return;
-  const near=SPOTS.map(s=>({...s,dist:hav(GPS.lat,GPS.lng,s.lat,s.lng)})).sort((a,b)=>a.dist-b.dist).slice(0,6);
-  document.getElementById('gnr').innerHTML='<div class="sh" style="margin-top:4px">Spot piu vicini</div>'+near.map(s=>{
-    const wd=WD[ck(s.lat,s.lng)],x=st(wd),bc=!x?'bg-e':x==='go'?'bg-go':x==='warn'?'bg-warn':'bg-nogo',bl=!x?'—':x==='go'?'GO':x==='warn'?'WARN':'NO GO';
-    const km=s.dist<1?Math.round(s.dist*1000)+'m':s.dist.toFixed(1)+'km';
-    const wi=wd?`<span style="font-family:var(--mono);font-size:11px;color:var(--text2)">50m: ${wd.v50} km/h · raff: ${wd.gusts}</span>`:'';
-    return`<div class="gnr" onclick="openM(${s.id})"><div><div style="font-size:13px;font-weight:700;margin-bottom:4px">${s.name}</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="db">${km}</span><span style="font-size:11px;color:var(--text3)">${s.sec}</span>${wi}</div></div><span class="badge ${bc}">${bl}</span></div>`;
+
+async function addCustom(){
+  const el=document.getElementById('srch');
+  let lat=parseFloat(el.dataset.lat),lng=parseFloat(el.dataset.lng),name=el.dataset.rname;
+  if(!lat||!lng){
+    const q=el.value.trim();if(!q)return;
+    const cm=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+    if(cm){lat=parseFloat(cm[1]);lng=parseFloat(cm[2]);name='Spot '+lat.toFixed(4)+','+lng.toFixed(4);}
+    else{
+      toast('Seleziona un suggerimento dalla lista');
+      if(q.length>=2)doSearch(q);
+      return;
+    }
+  }
+  const ns={id:Date.now(),sec:'Posti custom',name,lat,lng,c:true};
+  CS.push(ns);localStorage.setItem('cs',JSON.stringify(CS));
+  el.value='';delete el.dataset.lat;delete el.dataset.lng;delete el.dataset.rname;
+  hideSug();renderSpots();
+  toast('Aggiunto: '+name);
+}
+
+// ══ VOICE SEARCH ════════════════════════════════════════════
+function toggleMic(){
+  if(!('webkitSpeechRecognition' in window||'SpeechRecognition' in window)){
+    toast('Ricerca vocale non supportata in questo browser');return;
+  }
+  if(SRec){SRec.stop();SRec=null;document.getElementById('micbtn').classList.remove('listening');return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  SRec=new SR();
+  SRec.lang='it-IT';SRec.interimResults=false;SRec.maxAlternatives=1;
+  SRec.onstart=()=>{document.getElementById('micbtn').classList.add('listening');toast('Parla ora...');};
+  SRec.onresult=e=>{
+    const txt=e.results[0][0].transcript;
+    document.getElementById('srch').value=txt;
+    document.getElementById('micbtn').classList.remove('listening');
+    SRec=null;
+    toast('Cerco: "'+txt+'"');
+    doSearch(txt);
+  };
+  SRec.onerror=()=>{document.getElementById('micbtn').classList.remove('listening');SRec=null;toast('Errore microfono');};
+  SRec.onend=()=>{document.getElementById('micbtn').classList.remove('listening');SRec=null;};
+  SRec.start();
+}
+
+// ══ GPS ══════════════════════════════════════════════════════
+function doGPS(){
+  if(!navigator.geolocation){toast('GPS non disponibile');return;}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    MP={lat:pos.coords.latitude,lng:pos.coords.longitude};
+    document.getElementById('gc').textContent='📍 '+MP.lat.toFixed(5)+', '+MP.lng.toFixed(5);
+    const srt=[...AS()].map(s=>({...s,d:hv(MP.lat,MP.lng,s.lat,s.lng)})).sort((a,b)=>a.d-b.d).slice(0,6);
+    renderGPS(srt);
+  },()=>toast('Impossibile rilevare posizione'));
+}
+
+async function windHere(){
+  if(!MP){doGPS();toast('Prima rileva la posizione GPS');return;}
+  toast('Controllo vento qui...');
+  const dt=new Date(document.getElementById('dti').value);
+  const p=n=>String(n).padStart(2,'0');
+  const ds=dt.getFullYear()+'-'+p(dt.getMonth()+1)+'-'+p(dt.getDate());
+  try{
+    const r=await fw(MP.lat,MP.lng,ds,dt.getHours());
+    const x=st(r);const e=x==='go'?'✅':x==='warn'?'⚠️':'🚫';
+    document.getElementById('gc').textContent='📍 '+MP.lat.toFixed(5)+', '+MP.lng.toFixed(5)+' — 50m: '+r.v50+'km/h · raffiche: '+r.g+'km/h → '+e;
+    toast(e+' Qui: '+r.v50+'km/h a 50m, raffiche '+r.g+'km/h');
+  }catch{toast('Errore meteo');}
+}
+
+function hv(la1,lo1,la2,lo2){const R=6371,d=Math.PI/180,a=Math.sin((la2-la1)*d/2)**2+Math.cos(la1*d)*Math.cos(la2*d)*Math.sin((lo2-lo1)*d/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+
+function renderGPS(spots){
+  const el=document.getElementById('gres');
+  el.innerHTML=spots.map(s=>{
+    const r=WD[ck(s.lat,s.lng)];const x=st(r);
+    const bcl=!x?'bem':x==='go'?'bgo':x==='warn'?'bwn':'bng';
+    const bl=!x?'—':x==='go'?'GO':x==='warn'?'WARN':'NO GO';
+    const dist=s.d<1?Math.round(s.d*1000)+'m':s.d.toFixed(1)+'km';
+    const wi=r?'<div style="font-family:var(--mono);font-size:11px;color:var(--tx2);margin-top:4px">50m: '+r.v50+'km/h · raffiche: '+r.g+'km/h</div>':'';
+    const tid=(s.c?'c':'f')+s.id;
+    return'<div class="gsp" onclick="openM(\''+tid+'\')"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><strong style="font-size:13px">'+s.name+'</strong><span class="bdg '+bcl+'">'+bl+'</span></div><div style="display:flex;gap:8px;align-items:center"><span class="dp">'+dist+'</span><span style="font-size:11px;color:var(--tx3)">'+s.sec+'</span></div>'+wi+'</div>';
   }).join('');
 }
 
-async function checkCP(){
-  const inp=document.getElementById('cp').value.trim();if(!inp){showT('Inserisci un posto o coordinate');return}
-  const res=document.getElementById('cr');res.innerHTML='<div class="empty">Ricerca...</div>';
-  let lat,lng,pn=inp;
-  const cm=inp.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
-  if(cm){lat=parseFloat(cm[1]);lng=parseFloat(cm[2])}
-  else{
-    try{
-      const gr=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(inp)}&count=1&language=it&countryCode=IT`);
-      const gd=await gr.json();
-      if(gd.results?.length){lat=gd.results[0].latitude;lng=gd.results[0].longitude;pn=gd.results[0].name+(gd.results[0].admin1?`, ${gd.results[0].admin1}`:'')}
-      else{res.innerHTML='<div class="empty">Posto non trovato. Prova con coordinate (lat, lng).</div>';return}
-    }catch{res.innerHTML='<div class="empty">Errore ricerca.</div>';return}
-  }
-  try{
-    const{ds,hr}=getDTP();CPPOS={lat,lng,name:pn};CPWD=await fw(lat,lng,ds,hr);
-    const r=CPWD,x=st(r),vc=r.v50>MV?'v-nogo':r.v50>25?'v-warn':'v-go',gc=r.gusts>MG?'v-nogo':r.gusts>30?'v-warn':'';
-    const bl=x==='go'?'✓ Puoi volare':x==='warn'?'⚠ Attenzione':'✕ Troppo vento',bc=x==='go'?'bg-go':x==='warn'?'bg-warn':'bg-nogo';
-    const du=`https://droneskycheck-d0136.web.app/?lat=${lat}&lng=${lng}`;
-    res.innerHTML=`<div class="cres"><div style="font-size:13px;font-weight:700;margin-bottom:2px">${pn}</div><div style="font-size:11px;font-family:var(--mono);color:var(--text3);margin-bottom:12px">${lat.toFixed(5)}, ${lng.toFixed(5)}</div><div style="margin-bottom:12px"><span class="badge ${bc}" style="font-size:13px;padding:6px 14px">${bl}</span></div><div class="csg"><div class="cs"><div class="csl">10m</div><div class="csv">${r.v10} <small style="font-size:12px;color:var(--text3)">km/h</small></div></div><div class="cs"><div class="csl">50m</div><div class="csv ${vc}">${r.v50} <small>km/h</small></div></div><div class="cs"><div class="csl">Raffiche</div><div class="csv ${gc}">${r.gusts} <small style="font-size:12px;color:var(--text3)">km/h</small></div></div><div class="cs"><div class="csl">Direzione</div><div class="csv">${arr(r.dir)} ${r.dir}°</div></div></div><div class="mac"><button class="ml nav" onclick="oNav(${lat},${lng},'${pn.replace(/'/g,"\\'")}')">🧭 Naviga</button><a class="ml" href="${du}" target="_blank">🗺 Sky Check</a><button class="ml" onclick="addCP()">+ Spot</button></div></div>`;
-  }catch{res.innerHTML='<div class="empty">Errore meteo.</div>'}
-}
-function addCP(){
-  if(!CPPOS){showT('Prima cerca un posto');return}
-  if(SPOTS.find(s=>Math.abs(s.lat-CPPOS.lat)<.001&&Math.abs(s.lng-CPPOS.lng)<.001)){showT('Gia presente');return}
-  const ni=SPOTS.length+1;
-  SPOTS.push({id:ni,sec:'Personalizzati',name:CPPOS.name,lat:CPPOS.lat,lng:CPPOS.lng,custom:true});
-  if(CPWD)WD[ck(CPPOS.lat,CPPOS.lng)]=CPWD;
-  renderSpots();updSum();showT(CPPOS.name+' aggiunto!');
-  document.querySelectorAll('.tab,.panel').forEach(e=>e.classList.remove('active'));
-  document.querySelector('[data-panel="wind"]').classList.add('active');
-  document.getElementById('panel-wind').classList.add('active');
-}
-
-function ar(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px'}
-function hk(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}}
-function qa(t){document.getElementById('ci').value=t;sendChat()}
-
-function sysP(){
-  const dt=new Date(document.getElementById('dti').value),dts=dt.toLocaleString('it-IT');
-  let ws='';
-  if(Object.keys(WD).length>0){
-    const lines=SPOTS.map(s=>{const r=WD[ck(s.lat,s.lng)];if(!r)return null;const x=st(r);return`- ${s.name}: 10m=${r.v10}, 50m=${r.v50}, raff=${r.gusts}km/h -> ${x==='go'?'GO':x==='warn'?'ATTENZIONE':'NO GO'}`}).filter(Boolean).join('\n');
-    ws=`\n\nDATI VENTO (${dts}):\n${lines}`;
-  }
-  if(GPS)ws+=`\n\nPOSIZIONE GPS MAURO: ${GPS.lat.toFixed(4)}, ${GPS.lng.toFixed(4)}`;
-  if(CPWD&&CPPOS)ws+=`\n\nVENTO "${CPPOS.name}": 50m=${CPWD.v50}, raff=${CPWD.gusts} -> ${st(CPWD)==='go'?'GO':st(CPWD)==='warn'?'ATTENZIONE':'NO GO'}`;
-  return`Sei l'assistente drone di Mauro Cuccu a Sanluri (Sardegna).\nDRONE: DJI Mini 5 Pro, 249g, Cat.Aperta A1, no patentino. ENAC registrato. Vento max 35km/h, raffiche max 40km/h, quota max 120m AGL, VLOS.\nSanluri centro: zona libera ENAC (mar 2026).\nSPOT:\n${SPOTS.map(s=>`${s.id}. ${s.name} (${s.sec}) [${s.lat},${s.lng}]${s.note?` ⚠${s.note}`:''}`).join('\n')}${ws}\nRispondi in italiano, conciso e pratico.`;
-}
-async function sendChat(){
-  const inp=document.getElementById('ci'),txt=inp.value.trim();if(!txt)return;
-  const key=localStorage.getItem('anthropic_key');
-  if(!key){showT('Configura API key in Config');return}
-  inp.value='';inp.style.height='auto';document.getElementById('csb').disabled=true;
-  addMsg('u',txt);CH.push({role:'user',content:txt});
-  const tid=addTyp();
-  try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sysP(),messages:CH})});
-    remTyp(tid);
-    if(!res.ok){const e=await res.json().catch(()=>({}));addMsg('a',res.status===401?'API key non valida.':('Errore '+res.status+': '+(e.error?.message||'riprova')))}
-    else{const d=await res.json(),r=d.content?.[0]?.text||'Nessuna risposta.';addMsg('a',r);CH.push({role:'assistant',content:r});if(CH.length>20)CH=CH.slice(-20)}
-  }catch{remTyp(tid);addMsg('a','Errore di rete.')}
-  document.getElementById('csb').disabled=false;
-}
-function addMsg(role,txt){
-  const m=document.getElementById('cmsg'),t=new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-  const d=document.createElement('div');d.className='msg '+(role==='u'?'u':'a');
-  d.innerHTML=`<div class="bub">${esc(txt)}</div><div class="mt">${t}</div>`;
-  m.appendChild(d);m.scrollTop=m.scrollHeight;
-}
-function addTyp(){
-  const m=document.getElementById('cmsg'),id='t'+Date.now();
-  const d=document.createElement('div');d.className='msg a';d.id=id;
-  d.innerHTML='<div class="bub"><div class="typing"><div class="td"></div><div class="td"></div><div class="td"></div></div></div>';
-  m.appendChild(d);m.scrollTop=m.scrollHeight;return id;
-}
-function remTyp(id){document.getElementById(id)?.remove()}
-function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
-function chatAbout(id){
-  const s=SPOTS.find(x=>x.id===id),r=WD[ck(s.lat,s.lng)];
-  let msg=`Dimmi tutto sullo spot "${s.name}"`;
-  if(r)msg+=`. Vento: ${r.v10}km/h a terra, ${r.v50}km/h a 50m, raffiche ${r.gusts}km/h.`;
-  cMod({type:'x'});
-  document.querySelectorAll('.tab,.panel').forEach(e=>e.classList.remove('active'));
-  document.querySelector('[data-panel="chat"]').classList.add('active');
-  document.getElementById('panel-chat').classList.add('active');
-  document.getElementById('ci').value=msg;ar(document.getElementById('ci'));
+// ══ MODAL ════════════════════════════════════════════════════
+function openM(tid){
+  hideSug();
+  const isC=tid[0]==='c';const id=parseInt(tid.slice(1));
+  const sp=isC?CS.find(s=>s.id===id):FS.find(s=>s.id===id);
+  if(!sp)return;
+  const r=WD[ck(sp.lat,sp.lng)];const x=st(r);
+  const gm='https://maps.google.com/maps?daddr='+sp.lat+','+sp.lng+'&dirflg=d';
+  const gms='https://maps.google.com/maps?q='+sp.lat+','+sp.lng;
+  const wz='https://waze.com/ul?ll='+sp.lat+','+sp.lng+'&navigate=yes';
+  const geo='geo:'+sp.lat+','+sp.lng+'?q='+sp.lat+','+sp.lng+'('+encodeURIComponent(sp.name)+')';
+  const dsc='https://droneskycheck-d0136.web.app/?lat='+sp.lat+'&lng='+sp.lng;
+  let sh='';
+  if(r){
+    const vc=r.v50>MV?'var(--R)':r.v50>25?'var(--A)':'var(--G)';
+    const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':'var(--tx2)';
+    const bcl=x==='go'?'bgo':x==='warn'?'bwn':'bng';
+    const bl=x==='go'?'✓ Puoi volare':x==='warn'?'⚠ Vola con cautela':'✕ Troppo vento';
+    sh='<div style="margin-bottom:12px"><span class="bdg '+bcl+'" style="font-size:12px;padding:6px 14px">'+bl+'</span></div><div class="mgrid"><div class="mst"><div class="mstl">Terra 10m</div><div class="mstv">'+r.v10+' <span style="font-size:13px;color:var(--tx3)">km/h</span></div></div><div class="mst"><div class="mstl">Quota 50m</div><div class="mstv" style="color:'+vc+'">'+r.v50+' <span style="font-size:13px">km/h</span></div></div><div class="mst"><div class="mstl">Raffiche</div><div class="mstv" style="color:'+gc+'">'+r.g+' <span style="font-size:13px;color:var(--tx3)">km/h</span></div></div><div class="mst"><div class="mstl">Direzione</div><div class="mstv">'+d2a(r.dir)+' <span style="font-size:15px">'+r.dir+'°</span></div></div></div>';
+  }else{sh='<p style="color:var(--tx3);font-size:13px;margin-bottom:14px">Nessun dato vento — premi Controlla nel tab Vento</p>';}
+  const nh=sp.note?'<div class="note-box">⚠ '+sp.note+'</div>':'';
+  const rem=isC?'<button class="ml" style="color:var(--R);border-color:var(--Rbd)" onclick="remC('+id+')">Rimuovi</button>':'';
+  document.getElementById('mc').innerHTML=
+    '<div class="mname">'+sp.name+'</div>'+
+    '<div class="msec">'+(sp.sec||'')+' · '+sp.lat.toFixed(4)+', '+sp.lng.toFixed(4)+'</div>'+
+    nh+sh+
+    '<div class="navlbl">Naviga verso questo spot</div>'+
+    '<div class="navbtns">'+
+      '<a class="nb pr" href="'+gm+'" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Google Maps</a>'+
+      '<a class="nb wz" href="'+wz+'" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/></svg>Waze</a>'+
+      '<a class="nb" href="'+geo+'" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Scegli app</a>'+
+    '</div>'+
+    '<p style="font-size:10px;color:var(--tx3);margin-bottom:2px">"Scegli app" su Android apre il selettore: Maps, Waze, OsmAnd...</p>'+
+    '<div class="mact">'+
+      '<a class="ml" href="'+gms+'" target="_blank">Vedi su mappa</a>'+
+      '<a class="ml" href="'+dsc+'" target="_blank">Drone Sky Check</a>'+
+      rem+
+    '</div>';
+  document.getElementById('ov').classList.add('on');
 }
 
-function saveKey(){
-  const k=document.getElementById('ki').value.trim();
-  if(!k.startsWith('sk-ant')){document.getElementById('ks').innerHTML='<span class="err">Chiave non valida</span>';return}
-  localStorage.setItem('anthropic_key',k);document.getElementById('ki').value='';loadKeyStatus();showT('API key salvata');
-}
-function clearKey(){localStorage.removeItem('anthropic_key');loadKeyStatus();showT('API key rimossa')}
-function loadKeyStatus(){
-  const k=localStorage.getItem('anthropic_key');
-  document.getElementById('ks').innerHTML=k?`<span class="ok">✓ Configurata (${k.slice(0,14)}...)</span>`:'<span class="err">Nessuna chiave</span>';
-  document.getElementById('hs').textContent=k?'● AI':'';
-}
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DI=e;document.getElementById('icard').style.display='block'});
-function installPWA(){if(!DI){showT('Usa "Aggiungi a schermata Home"');return}DI.prompt();DI.userChoice.then(r=>{if(r.outcome==='accepted')showT('App installata!');DI=null;document.getElementById('icard').style.display='none'})}
-function registerSW(){if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})}
-function showT(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+function cmClose(e){if(e.target===document.getElementById('ov'))document.getElementById('ov').classList.remove('on');}
+function remC(id){CS=CS.filter(s=>s.id!==id);localStorage.setItem('cs',JSON.stringify(CS));document.getElementById('ov').classList.remove('on');renderSpots();toast('Spot rimosso');}
+
+// ══ PWA ══════════════════════════════════════════════════════
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DI=e;document.getElementById('ic').style.display='block';});
+function doPWA(){if(!DI){toast('Usa "Aggiungi a schermata Home" dal browser');return;}DI.prompt();DI.userChoice.then(r=>{if(r.outcome==='accepted')toast('App installata! ✓');DI=null;document.getElementById('ic').style.display='none';});}
+function regSW(){if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+
+// ══ UTILS ════════════════════════════════════════════════════
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2800);}
+function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+document.addEventListener('click',e=>{if(!e.target.closest('.r2')&&!e.target.closest('#suggestions'))hideSug();});
+
 init();
 </script>
 </body>
