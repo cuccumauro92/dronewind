@@ -73,7 +73,7 @@ input::placeholder{color:var(--tx3)}
 .sc:hover,.sc.on{background:var(--bg3)}
 .scn{font-family:var(--mono);font-size:22px}
 .scl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-top:1px;color:var(--tx3)}
-.s-go .scn{color:var(--G)}.s-warn .scn{color:var(--A)}.s-nogo .scn{color:var(--R)}
+.s-ottimo .scn{color:var(--B)}.s-go .scn{color:var(--G)}.s-warn .scn{color:var(--A)}.s-nogo .scn{color:var(--R)}
 /* spot list */
 .shdr{padding:12px 14px 5px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3);font-weight:700;flex-shrink:0}
 .srow{padding:10px 14px;border-bottom:1px solid var(--bdr);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;cursor:pointer;transition:background .12s}
@@ -85,6 +85,7 @@ input::placeholder{color:var(--tx3)}
 .wbar{height:2px;background:var(--bg3);border-radius:1px;margin-top:5px;overflow:hidden}
 .wbf{height:100%;border-radius:1px;transition:width .4s}
 .bdg{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:.05em;white-space:nowrap}
+.bot{background:var(--Bbg);color:var(--B);border:1px solid var(--Bbd)}
 .bgo{background:var(--Gbg);color:var(--G);border:1px solid var(--Gbd)}
 .bwn{background:var(--Abg);color:var(--A);border:1px solid var(--Abd)}
 .bng{background:var(--Rbg);color:var(--R);border:1px solid var(--Rbd)}
@@ -160,7 +161,15 @@ a.ext:hover{text-decoration:underline}
   <div class="wctrl">
     <div class="r1">
       <input type="datetime-local" id="dti">
+      <button class="btn sec sm" onclick="setNow()">Adesso</button>
       <button class="btn" id="chkbtn" onclick="checkAll()">Controlla</button>
+    </div>
+    <div class="r1">
+      <span style="font-size:10px;color:var(--tx3);white-space:nowrap">Max vento</span>
+      <input type="number" id="imv" value="35" min="5" max="80" style="width:52px;text-align:center;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rd);color:var(--tx);font-family:var(--mono);font-size:12px;padding:6px 4px;outline:none" onchange="updThresh()">
+      <span style="font-size:10px;color:var(--tx3);white-space:nowrap">Max raffiche</span>
+      <input type="number" id="img" value="35" min="5" max="80" style="width:52px;text-align:center;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rd);color:var(--tx);font-family:var(--mono);font-size:12px;padding:6px 4px;outline:none" onchange="updThresh()">
+      <span style="font-size:10px;color:var(--tx3)">km/h</span>
     </div>
     <div class="r2">
       <input type="text" id="srch" placeholder="Cerca posto: nome, indirizzo o lat,lng..." autocomplete="off" autocorrect="off"
@@ -172,8 +181,9 @@ a.ext:hover{text-decoration:underline}
     </div>
   </div>
   <div id="suggestions"></div>
-  <div class="wsum" id="wsum" style="display:none">
-    <div class="sc s-go" id="sg" onclick="setF('go')"><div class="scn" id="cg">0</div><div class="scl">Go</div></div>
+  <div class="wsum" id="wsum" style="display:none;grid-template-columns:repeat(4,1fr)">
+    <div class="sc s-ottimo" id="so" onclick="setF('ottimo')"><div class="scn" id="co">0</div><div class="scl">Ottimo</div></div>
+    <div class="sc s-go" id="sg" onclick="setF('go')"><div class="scn" id="cg">0</div><div class="scl">Buono</div></div>
     <div class="sc s-warn" id="sw" onclick="setF('warn')"><div class="scn" id="cw">0</div><div class="scl">Attenzione</div></div>
     <div class="sc s-nogo" id="sn" onclick="setF('nogo')"><div class="scn" id="cn">0</div><div class="scl">No go</div></div>
   </div>
@@ -244,7 +254,7 @@ a.ext:hover{text-decoration:underline}
 <script>
 // ══ SPOTS ════════════════════════════════════════════════════
 const FS=[
-  {id:1,sec:"Sanluri centro",name:"Casa — Via M. Buonarrotti 2",lat:39.5648,lng:8.8942},
+  {id:1,sec:"Sanluri centro",name:"Casa — Via M. Buonarroti 2A",lat:39.5654,lng:8.9000},
   {id:2,sec:"Sanluri centro",name:"Villa Comunale",lat:39.5640,lng:8.8960},
   {id:3,sec:"Sanluri centro",name:"Castello Eleonora d'Arborea",lat:39.5633,lng:8.8979,note:"Bene culturale MiC"},
   {id:4,sec:"Sanluri centro",name:"Piazza San Pietro",lat:39.5612,lng:8.8998},
@@ -272,15 +282,25 @@ let sugData=[],sugIdx=-1,srchDebounce=null;
 function AS(){return[...FS,...CS];}
 function secs(){return[...new Set(AS().map(s=>s.sec))];}
 function ck(lat,lng){return(+lat).toFixed(3)+','+(+lng).toFixed(3);}
-const MV=35,MG=40;
+let MV=35,MG=35;
+
+function updThresh(){
+  MV=parseInt(document.getElementById('imv').value)||35;
+  MG=parseInt(document.getElementById('img').value)||35;
+  if(Object.keys(WD).length)updSum();
+  renderSpots();
+}
+
+function setNow(){
+  document.getElementById('dti').value=fdt(new Date());
+}
 
 function init(){
-  const n=new Date();n.setMinutes(0,0,0);
-  document.getElementById('dti').value=fdt(n);
+  document.getElementById('dti').value=fdt(new Date());
   renderSpots();regSW();
   checkAll();
 }
-function fdt(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':00';}
+function fdt(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
 
 // tabs
 document.querySelectorAll('.tab').forEach(t=>{
@@ -319,19 +339,22 @@ async function checkAll(){
   b.disabled=false;b.textContent='Aggiorna';
 }
 
-function st(r){if(!r)return null;if(r.v50>MV||r.g>MG)return'nogo';if(r.v50>25||r.g>30)return'warn';return'go';}
+function st(r){if(!r)return null;if(r.v50>MV||r.g>MG)return'nogo';if(r.v50>30||r.g>30)return'warn';if(r.v50>15||r.g>15)return'go';return'ottimo';}
 
 function updSum(){
-  const c={go:0,warn:0,nogo:0};
+  const c={ottimo:0,go:0,warn:0,nogo:0};
   AS().forEach(s=>{const r=WD[ck(s.lat,s.lng)];const x=st(r);if(x)c[x]++;});
-  ['go','warn','nogo'].forEach(k=>document.getElementById(k[0]=='g'?'cg':k[0]=='w'?'cw':'cn').textContent=c[k]);
+  document.getElementById('co').textContent=c.ottimo;
+  document.getElementById('cg').textContent=c.go;
+  document.getElementById('cw').textContent=c.warn;
+  document.getElementById('cn').textContent=c.nogo;
   document.getElementById('wsum').style.display='';
 }
 
 function setF(f){
   AF=AF===f?null:f;
   document.querySelectorAll('.sc').forEach(c=>c.classList.remove('on'));
-  if(AF)document.getElementById('s'+f[0]).classList.add('on');
+  if(AF){const m={ottimo:'so',go:'sg',warn:'sw',nogo:'sn'};document.getElementById(m[AF]).classList.add('on');}
   renderSpots();
 }
 
@@ -351,13 +374,13 @@ function renderSpots(){
       const ct=sp.c?'<span class="stag">custom</span>':'';
       let bdg='<span class="bdg bem">—</span>',dh='';
       if(r){
-        const vc=r.v50>MV?'var(--R)':r.v50>25?'var(--A)':'var(--G)';
-        const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':'var(--tx2)';
+        const vc=r.v50>MV?'var(--R)':r.v50>30?'var(--A)':r.v50>15?'var(--G)':'var(--B)';
+        const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':r.g>15?'var(--G)':'var(--B)';
         const pct=Math.min(100,(r.v50/MV)*100);
-        const bc=r.v50>MV?'var(--R)':r.v50>25?'var(--A)':'var(--G)';
+        const bc=r.v50>MV?'var(--R)':r.v50>30?'var(--A)':r.v50>15?'var(--G)':'var(--B)';
         dh='<div class="sdata"><span>10m:<b>'+r.v10+'</b></span><span style="color:'+vc+'">50m:<b>'+r.v50+'</b></span><span style="color:'+gc+'">↑<b>'+r.g+'</b></span><span>'+d2a(r.dir)+' '+r.dir+'°</span></div><div class="wbar"><div class="wbf" style="width:'+pct+'%;background:'+bc+'"></div></div>';
-        const bcl=x==='go'?'bgo':x==='warn'?'bwn':'bng';
-        bdg='<span class="bdg '+bcl+'">'+(x==='go'?'GO':x==='warn'?'WARN':'NO GO')+'</span>';
+        const bcl=x==='ottimo'?'bot':x==='go'?'bgo':x==='warn'?'bwn':'bng';
+        bdg='<span class="bdg '+bcl+'">'+(x==='ottimo'?'OTTIMO':x==='go'?'BUONO':x==='warn'?'WARN':'NO GO')+'</span>';
       }else if(!hd){dh='<span style="font-size:11px;color:var(--tx3);font-family:var(--mono)">premi Controlla</span>';}
       else{dh='<span style="font-size:11px;color:var(--tx3);font-family:var(--mono)" class="pls">caricamento...</span>';}
       const tid=(sp.c?'c':'f')+sp.id;
@@ -475,10 +498,10 @@ function showTempWindModal(s){
 
   fw(s.lat, s.lng, ds, dt.getHours()).then(r=>{
     const x=st(r);
-    const vc=r.v50>MV?'var(--R)':r.v50>25?'var(--A)':'var(--G)';
-    const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':'var(--tx2)';
-    const bcl=x==='go'?'bgo':x==='warn'?'bwn':'bng';
-    const bl=x==='go'?'✓ Puoi volare':x==='warn'?'⚠ Vola con cautela':'✕ Troppo vento';
+    const vc=r.v50>MV?'var(--R)':r.v50>30?'var(--A)':r.v50>15?'var(--G)':'var(--B)';
+    const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':r.g>15?'var(--G)':'var(--B)';
+    const bcl=x==='ottimo'?'bot':x==='go'?'bgo':x==='warn'?'bwn':'bng';
+    const bl=x==='ottimo'?'✓ Condizioni ottime':x==='go'?'✓ Puoi volare':x==='warn'?'⚠ Vola con cautela':'✕ Troppo vento';
     const html=
       '<div style="margin-bottom:12px"><span class="bdg '+bcl+'" style="font-size:12px;padding:6px 14px">'+bl+'</span></div>'+
       '<div class="mgrid">'+
@@ -605,10 +628,10 @@ function openM(tid){
   const dsc='https://droneskycheck-d0136.web.app/?lat='+sp.lat+'&lng='+sp.lng;
   let sh='';
   if(r){
-    const vc=r.v50>MV?'var(--R)':r.v50>25?'var(--A)':'var(--G)';
-    const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':'var(--tx2)';
-    const bcl=x==='go'?'bgo':x==='warn'?'bwn':'bng';
-    const bl=x==='go'?'✓ Puoi volare':x==='warn'?'⚠ Vola con cautela':'✕ Troppo vento';
+    const vc=r.v50>MV?'var(--R)':r.v50>30?'var(--A)':r.v50>15?'var(--G)':'var(--B)';
+    const gc=r.g>MG?'var(--R)':r.g>30?'var(--A)':r.g>15?'var(--G)':'var(--B)';
+    const bcl=x==='ottimo'?'bot':x==='go'?'bgo':x==='warn'?'bwn':'bng';
+    const bl=x==='ottimo'?'✓ Condizioni ottime':x==='go'?'✓ Puoi volare':x==='warn'?'⚠ Vola con cautela':'✕ Troppo vento';
     sh='<div style="margin-bottom:12px"><span class="bdg '+bcl+'" style="font-size:12px;padding:6px 14px">'+bl+'</span></div><div class="mgrid"><div class="mst"><div class="mstl">Terra 10m</div><div class="mstv">'+r.v10+' <span style="font-size:13px;color:var(--tx3)">km/h</span></div></div><div class="mst"><div class="mstl">Quota 50m</div><div class="mstv" style="color:'+vc+'">'+r.v50+' <span style="font-size:13px">km/h</span></div></div><div class="mst"><div class="mstl">Raffiche</div><div class="mstv" style="color:'+gc+'">'+r.g+' <span style="font-size:13px;color:var(--tx3)">km/h</span></div></div><div class="mst"><div class="mstl">Direzione</div><div class="mstv">'+d2a(r.dir)+' <span style="font-size:15px">'+r.dir+'°</span></div></div></div>';
   }else{sh='<p style="color:var(--tx3);font-size:13px;margin-bottom:14px">Nessun dato vento — premi Controlla nel tab Vento</p>';}
   const nh=sp.note?'<div class="note-box">⚠ '+sp.note+'</div>':'';
