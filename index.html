@@ -387,7 +387,7 @@ async function doSearch(q){
   const local=AS().filter(s=>s.name.toLowerCase().includes(q.toLowerCase())).map(s=>({name:s.name,addr:s.sec,lat:s.lat,lng:s.lng,isSpot:true,spotId:s.id}));
   // 3. Photon geocoder (OSM) con proximity bias su Sanluri — coordinate affidabili
   try{
-    const phUrl='https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lat=39.5648&lon=8.8942&limit=5&lang=it';
+    const phUrl='https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lat=39.5648&lon=8.8942&limit=5&lang=default';
     const res=await fetch(phUrl);
     const data=await res.json();
     const remote=data.features.map(f=>({
