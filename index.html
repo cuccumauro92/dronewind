@@ -278,6 +278,7 @@ function init(){
   const n=new Date();n.setMinutes(0,0,0);
   document.getElementById('dti').value=fdt(n);
   renderSpots();regSW();
+  checkAll();
 }
 function fdt(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':00';}
 
