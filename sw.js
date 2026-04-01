@@ -1,4 +1,4 @@
-const CACHE = 'dronewind-v6';
+const CACHE = 'dronewind-v7';
 const STATIC = ['./manifest.json','./icon-192.png','./icon-512.png','./sw.js'];
 
 // Skip waiting immediately on install — no need to close all tabs
@@ -22,7 +22,7 @@ self.addEventListener('fetch', e => {
   // Never intercept API calls
   if (url.includes('api.anthropic.com') ||
       url.includes('api.open-meteo.com') ||
-      url.includes('nominatim.openstreetmap.org') ||
+      url.includes('photon.komoot.io') ||
       url.includes('fonts.googleapis.com') ||
       url.includes('fonts.gstatic.com')) return;
 
