@@ -1,0 +1,15 @@
+name = "dronewind-push"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["0 6,9,12,15,18,21 * * *"]
+
+[[kv_namespaces]]
+binding = "SUBS"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[vars]
+VAPID_PUBLIC = "BCklCWQe0Ha68Ro6KAKMYMn6jcaTo4WF92s3sMwRBuAUgFW3zsGgoZjSNrfRqIbBHe4O9WMhfQDOTT-IDypL5gY"
+VAPID_PRIVATE = "EukltN9uIgR_IKsI348AsgUjzAOc8pIoAef2BNucW5c"
+VAPID_SUBJECT = "mailto:cuccu.mauro92@gmail.com"

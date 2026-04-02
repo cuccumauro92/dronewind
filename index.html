@@ -319,10 +319,11 @@ body{color-scheme:dark}
     </p>
   </div>
   <div class="card" id="notifCard">
-    <h3>Notifiche</h3>
-    <p>Ricevi un avviso quando un preferito diventa volabile.</p>
-    <label class="nchk"><input type="checkbox" id="notifChk" onchange="toggleNotif()"> Avvisa quando un preferito diventa volabile</label>
-    <div id="notifStatus" style="font-size:11px;color:var(--tx3);margin-top:6px"></div>
+    <h3>Notifiche push</h3>
+    <p>Ricevi notifiche anche quando l'app e chiusa: riepilogo giornaliero alle 6 + avvisi quando le condizioni migliorano.</p>
+    <button class="btn" id="pushBtn" onclick="subscribePush()" style="margin-bottom:8px">Attiva notifiche push</button>
+    <button class="btn sec sm" id="pushOff" onclick="unsubscribePush()" style="display:none;margin-bottom:8px">Disattiva</button>
+    <div id="pushStatus" style="font-size:11px;color:var(--tx3);margin-top:4px"></div>
   </div>
   <div class="card">
     <h3>Fonti</h3>
@@ -1051,67 +1052,78 @@ function locateMe(){
   },()=>toast('Impossibile rilevare posizione'));
 }
 
-// ══ NOTIFICATIONS ═══════════════════════════════════════════
-let prevFavStates={};
-let notifEnabled=localStorage.getItem('notifEnabled')==='true';
+// ══ PUSH NOTIFICATIONS ═════════════════════════════════════
+const PUSH_SERVER='https://dronewind-push.YOUR_CF_SUBDOMAIN.workers.dev';
+const VAPID_PUB='BCklCWQe0Ha68Ro6KAKMYMn6jcaTo4WF92s3sMwRBuAUgFW3zsGgoZjSNrfRqIbBHe4O9WMhfQDOTT-IDypL5gY';
 
-function toggleNotif(){
-  const chk=document.getElementById('notifChk');
-  if(chk.checked){
-    if(!('Notification' in window)){
-      toast('Notifiche non supportate in questo browser');
-      chk.checked=false;return;
+async function subscribePush(){
+  const st=document.getElementById('pushStatus');
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+    st.textContent='Push non supportato in questo browser';return;
+  }
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){st.textContent='Permesso notifiche negato';return;}
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){
+      sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUB)});
     }
-    Notification.requestPermission().then(perm=>{
-      if(perm==='granted'){
-        notifEnabled=true;
-        localStorage.setItem('notifEnabled','true');
-        document.getElementById('notifStatus').textContent='Notifiche attive';
-        toast('Notifiche attivate');
-      }else{
-        chk.checked=false;
-        notifEnabled=false;
-        localStorage.setItem('notifEnabled','false');
-        document.getElementById('notifStatus').textContent='Permesso negato dal browser';
-      }
+    // send to backend
+    await fetch(PUSH_SERVER+'/subscribe',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subscription:sub.toJSON(),spots:FAVS})
     });
-  }else{
-    notifEnabled=false;
-    localStorage.setItem('notifEnabled','false');
-    document.getElementById('notifStatus').textContent='';
+    localStorage.setItem('pushEnabled','true');
+    document.getElementById('pushBtn').style.display='none';
+    document.getElementById('pushOff').style.display='inline-block';
+    st.textContent='Notifiche push attive — riepilogo alle 6 + avvisi cambiamenti';
+    st.style.color='var(--G)';
+    toast('Notifiche push attivate');
+  }catch(e){
+    st.textContent='Errore: '+e.message;st.style.color='var(--R)';
   }
 }
 
-function checkFavNotifications(){
-  if(!notifEnabled)return;
-  const favSpots=AS().filter(s=>isFav(s));
-  favSpots.forEach(s=>{
-    const k=(s.c?'c':'f')+s.id;
-    const r=WD[ck(s.lat,s.lng)];
-    const cur=st(r);
-    const prev=prevFavStates[k];
-    if(prev&&(prev==='nogo'||prev==='warn')&&cur&&(cur==='go'||cur==='ottimo')){
-      try{
-        new Notification('DroneWind',{body:s.name+' ora e\u0300 volabile! ('+cur.toUpperCase()+')',icon:'./icons/icon-192.png'});
-      }catch{}
+async function unsubscribePush(){
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub){
+      await fetch(PUSH_SERVER+'/subscribe',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint})});
+      await sub.unsubscribe();
     }
-    if(cur)prevFavStates[k]=cur;
-  });
+    localStorage.setItem('pushEnabled','false');
+    document.getElementById('pushBtn').style.display='inline-block';
+    document.getElementById('pushOff').style.display='none';
+    document.getElementById('pushStatus').textContent='Notifiche disattivate';
+    document.getElementById('pushStatus').style.color='var(--tx3)';
+    toast('Notifiche push disattivate');
+  }catch{}
 }
 
-function restoreNotif(){
-  const chk=document.getElementById('notifChk');
-  if(notifEnabled){
-    chk.checked=true;
-    document.getElementById('notifStatus').textContent='Notifiche attive';
+function restorePush(){
+  if(localStorage.getItem('pushEnabled')==='true'){
+    document.getElementById('pushBtn').style.display='none';
+    document.getElementById('pushOff').style.display='inline-block';
+    document.getElementById('pushStatus').textContent='Notifiche push attive';
+    document.getElementById('pushStatus').style.color='var(--G)';
   }
 }
 
-// patch checkAll to call notifications + best windows
+function urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(base64);const arr=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+  return arr;
+}
+
+// patch checkAll to load best windows after completion
 const _origCheckAll=checkAll;
 checkAll=async function(){
   await _origCheckAll();
-  checkFavNotifications();
   loadBestWindows();
 };
 
@@ -1282,7 +1294,7 @@ document.querySelectorAll('.tab').forEach(t=>{
 });
 
 restoreTheme();
-restoreNotif();
+restorePush();
 init();
 </script>
 </body>

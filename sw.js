@@ -1,4 +1,4 @@
-const CACHE = 'dronewind-v8';
+const CACHE = 'dronewind-v9';
 const STATIC = ['./manifest.json','./icon-192.png','./icon-512.png','./sw.js'];
 
 // Skip waiting immediately on install — no need to close all tabs
@@ -26,7 +26,8 @@ self.addEventListener('fetch', e => {
       url.includes('basemaps.cartocdn.com') ||
       url.includes('unpkg.com') ||
       url.includes('fonts.googleapis.com') ||
-      url.includes('fonts.gstatic.com')) return;
+      url.includes('fonts.gstatic.com') ||
+      url.includes('workers.dev')) return;
 
   // index.html — always network first, fall back to cache
   if (url.endsWith('/') || url.includes('index.html')) {
@@ -52,6 +53,32 @@ self.addEventListener('fetch', e => {
         }
         return res;
       });
+    })
+  );
+});
+
+// Push notifications
+self.addEventListener('push', e => {
+  let data = { title: 'DroneWind', body: 'Aggiornamento condizioni vento' };
+  try { data = e.data.json(); } catch {}
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      tag: data.tag || 'dronewind',
+      renotify: true,
+      vibrate: [200, 100, 200]
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window' }).then(list => {
+      for (const c of list) { if (c.url.includes('dronewind') && 'focus' in c) return c.focus(); }
+      if (clients.openWindow) return clients.openWindow('./');
     })
   );
 });
