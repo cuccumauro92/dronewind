@@ -7,7 +7,7 @@ crons = ["0 6,9,12,15,18,21 * * *"]
 
 [[kv_namespaces]]
 binding = "SUBS"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "e8bd376d61fc47c98cf48b1a6b6c748b"
 
 [vars]
 VAPID_PUBLIC = "BCklCWQe0Ha68Ro6KAKMYMn6jcaTo4WF92s3sMwRBuAUgFW3zsGgoZjSNrfRqIbBHe4O9WMhfQDOTT-IDypL5gY"
