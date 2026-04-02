@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px
 .btn.sec{background:var(--bg3);color:var(--tx);border:1px solid var(--bdr2)}
 .btn.sm{padding:6px 10px;font-size:11px}
 /* inputs */
-input[type=text],input[type=datetime-local]{background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rd);color:var(--tx);font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none;-webkit-appearance:none}
+input[type=text],input[type=datetime-local],input[type=date],input[type=time],input[type=number]{background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rd);color:var(--tx);font-family:var(--mono);font-size:12px;padding:8px 10px;outline:none;-webkit-appearance:none}
 input:focus{border-color:var(--G)}
 input::placeholder{color:var(--tx3)}
 
@@ -142,6 +142,21 @@ a.ext:hover{text-decoration:underline}
 .empty{padding:28px 16px;text-align:center;color:var(--tx3);font-size:13px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .pls{animation:pulse 1.4s ease-in-out infinite}
+/* last update */
+#lupd{font-size:10px;font-family:var(--mono);color:var(--tx3);padding:4px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0;display:none}
+/* favorite star */
+.fav{cursor:pointer;font-size:14px;margin-right:4px;opacity:.3;transition:opacity .15s}
+.fav.on{opacity:1}
+/* swipe row */
+.srow-wrap{position:relative;overflow:hidden}
+.srow-wrap .sdel{position:absolute;right:0;top:0;bottom:0;width:70px;background:var(--R);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transform:translateX(70px);transition:transform .2s}
+.srow-wrap.swiped .sdel{transform:translateX(0)}
+.srow-wrap.swiped .srow{transform:translateX(-70px)}
+.srow{transition:transform .2s}
+/* share button in modal */
+.mshare{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--Gbg);border:1px solid var(--Gbd);border-radius:8px;color:var(--G);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:opacity .15s}
+.mshare:hover{opacity:.8}
+.mshare svg{width:14px;height:14px;fill:currentColor}
 </style>
 </head>
 <body>
@@ -189,6 +204,7 @@ a.ext:hover{text-decoration:underline}
     <div class="sc s-warn" id="sw" onclick="setF('warn')"><div class="scn" id="cw">0</div><div class="scl">Attenzione</div></div>
     <div class="sc s-nogo" id="sn" onclick="setF('nogo')"><div class="scn" id="cn">0</div><div class="scl">No volo</div></div>
   </div>
+  <div id="lupd"></div>
   <div id="slist" style="flex:1;overflow-y:auto"></div>
 </div>
 
@@ -278,11 +294,24 @@ const FS=[
   {id:20,sec:"Gite dedicate",name:"Su Nuraxi — Barumini",lat:39.7059,lng:8.9907,note:"UNESCO"},
 ];
 let CS=JSON.parse(localStorage.getItem('cs')||'[]');
-let WD={},AF=null,DI=null,MP=null,SRec=null;
+let FAVS=JSON.parse(localStorage.getItem('favs')||'[]');
+let WD={},AF=null,DI=null,MP=null,SRec=null,autoRefId=null,lastUpd=null;
 let sugData=[],sugIdx=-1,srchDebounce=null;
 
 function AS(){return[...FS,...CS];}
-function secs(){return[...new Set(AS().map(s=>s.sec))];}
+function isFav(s){const k=(s.c?'c':'f')+s.id;return FAVS.includes(k);}
+function toggleFav(tid){
+  const i=FAVS.indexOf(tid);
+  if(i>=0)FAVS.splice(i,1);else FAVS.push(tid);
+  localStorage.setItem('favs',JSON.stringify(FAVS));
+  renderSpots();if(Object.keys(WD).length)updSum();
+}
+function secs(){
+  const all=AS();
+  const hasFavs=all.some(s=>isFav(s));
+  const base=[...new Set(all.map(s=>s.sec))];
+  return hasFavs?['Preferiti',...base]:base;
+}
 function ck(lat,lng){return(+lat).toFixed(3)+','+(+lng).toFixed(3);}
 let MV=35,MG=35;
 
@@ -301,8 +330,18 @@ function setNow(){
 
 function init(){
   setNow();
+  // #7 — restore cached wind data if fresh (<60 min)
+  try{
+    const cached=JSON.parse(localStorage.getItem('wd_cache')||'null');
+    if(cached&&cached.ts&&(Date.now()-cached.ts<3600000)){
+      WD=cached.data;lastUpd=new Date(cached.ts);
+      showLupd();updSum();
+    }
+  }catch{}
   renderSpots();regSW();
   checkAll();
+  // #2 — auto-refresh every 30 min
+  autoRefId=setInterval(()=>{setNow();checkAll();},1800000);
 }
 function fmtDate(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
 function fmtTime(d){const p=n=>String(n).padStart(2,'0');return p(d.getHours())+':'+p(d.getMinutes());}
@@ -341,8 +380,18 @@ async function checkAll(){
   await Promise.all(Object.entries(uq).map(async([k,{lat,lng}])=>{
     try{WD[k]=await fw(lat,lng,ds,hr);}catch{WD[k]=null;}
   }));
-  renderSpots();updSum();
+  lastUpd=new Date();
+  localStorage.setItem('wd_cache',JSON.stringify({data:WD,ts:lastUpd.getTime()}));
+  renderSpots();updSum();showLupd();
   b.disabled=false;b.textContent='Aggiorna';
+}
+
+function showLupd(){
+  if(!lastUpd)return;
+  const el=document.getElementById('lupd');
+  const p=n=>String(n).padStart(2,'0');
+  el.textContent='Ultimo aggiornamento: '+p(lastUpd.getHours())+':'+p(lastUpd.getMinutes())+' · auto-refresh ogni 30 min';
+  el.style.display='block';
 }
 
 function st(r){if(!r)return null;const w=Math.max(r.v50,r.g);if(w>MV)return'nogo';if(w>30)return'warn';if(w>15)return'go';return'ottimo';}
@@ -371,13 +420,20 @@ function renderSpots(){
   const hd=Object.keys(WD).length>0;
   let h='';
   secs().forEach(sec=>{
-    let spots=AS().filter(s=>s.sec===sec);
+    let spots;
+    if(sec==='Preferiti'){
+      spots=AS().filter(s=>isFav(s));
+    }else{
+      spots=AS().filter(s=>s.sec===sec&&!isFav(s));
+    }
     if(AF&&hd)spots=spots.filter(s=>st(WD[ck(s.lat,s.lng)])===AF);
     if(!spots.length)return;
     h+='<div class="shdr">'+sec+'</div>';
     spots.forEach(sp=>{
       const r=WD[ck(sp.lat,sp.lng)];const x=st(r);
+      const tid=(sp.c?'c':'f')+sp.id;
       const ct=sp.c?'<span class="stag">custom</span>':'';
+      const star='<span class="fav'+(isFav(sp)?' on':'')+'" onclick="event.stopPropagation();toggleFav(\''+tid+'\')">'+(isFav(sp)?'★':'☆')+'</span>';
       let bdg='<span class="bdg bem">—</span>',dh='';
       if(r){
         const worst=Math.max(r.v50,r.g);
@@ -389,11 +445,16 @@ function renderSpots(){
         bdg='<span class="bdg '+bcl+'">'+lbl+'</span>';
       }else if(!hd){dh='<span style="font-size:11px;color:var(--tx3);font-family:var(--mono)">premi Controlla</span>';}
       else{dh='<span style="font-size:11px;color:var(--tx3);font-family:var(--mono)" class="pls">caricamento...</span>';}
-      const tid=(sp.c?'c':'f')+sp.id;
-      h+='<div class="srow" onclick="openM(\''+tid+'\')"><div><div class="sname"><span class="snum">'+sp.id+'.</span>'+sp.name+ct+'</div>'+dh+'</div><div>'+bdg+'</div></div>';
+      if(sp.c){
+        h+='<div class="srow-wrap" data-cid="'+sp.id+'"><div class="srow" onclick="openM(\''+tid+'\')"><div><div class="sname">'+star+'<span class="snum">'+sp.id+'.</span>'+sp.name+ct+'</div>'+dh+'</div><div>'+bdg+'</div></div><div class="sdel" onclick="remC('+sp.id+')">Elimina</div></div>';
+      }else{
+        h+='<div class="srow" onclick="openM(\''+tid+'\')"><div><div class="sname">'+star+'<span class="snum">'+sp.id+'.</span>'+sp.name+ct+'</div>'+dh+'</div><div>'+bdg+'</div></div>';
+      }
     });
   });
   el.innerHTML=h||'<div class="empty">Nessuno spot corrisponde al filtro</div>';
+  // attach swipe handlers for custom spots
+  el.querySelectorAll('.srow-wrap').forEach(initSwipe);
 }
 
 // ══ SEARCH ══════════════════════════════════════════════════
@@ -538,8 +599,6 @@ function quickAddSpot(){
   document.getElementById('ov').classList.remove('on');
 }
 
-function clearQbar(){ window._qsel=null; }
-
 async function addCustom(){
   const el=document.getElementById('srch');
   const q=el.value.trim();
@@ -611,8 +670,8 @@ function renderGPS(spots){
   const el=document.getElementById('gres');
   el.innerHTML=spots.map(s=>{
     const r=WD[ck(s.lat,s.lng)];const x=st(r);
-    const bcl=!x?'bem':x==='go'?'bgo':x==='warn'?'bwn':'bng';
-    const bl=!x?'—':x==='go'?'GO':x==='warn'?'WARN':'NO GO';
+    const bcl=!x?'bem':x==='ottimo'?'bot':x==='go'?'bgo':x==='warn'?'bwn':'bng';
+    const bl=!x?'—':x==='ottimo'?'OTTIMO':x==='go'?'BUONO':x==='warn'?'ATTENZIONE':'NO VOLO';
     const dist=s.d<1?Math.round(s.d*1000)+'m':s.d.toFixed(1)+'km';
     const wi=r?'<div style="font-family:var(--mono);font-size:11px;color:var(--tx2);margin-top:4px">50m: '+r.v50+'km/h · raffiche: '+r.g+'km/h</div>':'';
     const tid=(s.c?'c':'f')+s.id;
@@ -642,8 +701,9 @@ function openM(tid){
   }else{sh='<p style="color:var(--tx3);font-size:13px;margin-bottom:14px">Nessun dato vento — premi Controlla nel tab Vento</p>';}
   const nh=sp.note?'<div class="note-box">⚠ '+sp.note+'</div>':'';
   const rem=isC?'<button class="ml" style="color:var(--R);border-color:var(--Rbd)" onclick="remC('+id+')">Rimuovi</button>':'';
+  const shareBtn=r?'<button class="mshare" onclick="shareSpot(\''+esc(sp.name.replace(/'/g,"\\&#39;"))+'\',{v50:'+r.v50+',g:'+r.g+',dir:'+r.dir+'},\''+x+'\')"><svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>Condividi</button>':'';
   document.getElementById('mc').innerHTML=
-    '<div class="mname">'+sp.name+'</div>'+
+    '<div class="mname">'+esc(sp.name)+'</div>'+
     '<div class="msec">'+(sp.sec||'')+' · '+sp.lat.toFixed(4)+', '+sp.lng.toFixed(4)+'</div>'+
     nh+sh+
     '<div class="navlbl">Naviga verso questo spot</div>'+
@@ -656,6 +716,7 @@ function openM(tid){
     '<div class="mact">'+
       '<a class="ml" href="'+gms+'" target="_blank">Vedi su mappa</a>'+
       '<a class="ml" href="'+dsc+'" target="_blank">Drone Sky Check</a>'+
+      shareBtn+
       rem+
     '</div>';
   document.getElementById('ov').classList.add('on');
@@ -679,6 +740,34 @@ function regSW(){
 // ══ UTILS ════════════════════════════════════════════════════
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2800);}
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// #10 — share spot wind data
+function shareSpot(name,r,x){
+  const lbl=x==='ottimo'?'OTTIMO':x==='go'?'BUONO':x==='warn'?'ATTENZIONE':'NO VOLO';
+  const dt=getDT();
+  const p=n=>String(n).padStart(2,'0');
+  const when=p(dt.getDate())+'/'+ p(dt.getMonth()+1)+' ore '+p(dt.getHours())+':'+p(dt.getMinutes());
+  const txt=name+' — '+lbl+'\nVento 50m: '+r.v50+' km/h · Raffiche: '+r.g+' km/h · Dir: '+d2a(r.dir)+' '+r.dir+'°\n'+when+' · DroneWind';
+  if(navigator.share){navigator.share({text:txt}).catch(()=>{});}
+  else{navigator.clipboard.writeText(txt).then(()=>toast('Copiato negli appunti')).catch(()=>{});}
+}
+
+// #6 — swipe to delete custom spots
+function initSwipe(wrap){
+  let sx=0,dx=0,swiping=false;
+  const row=wrap.querySelector('.srow');
+  row.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;dx=0;swiping=false;},{passive:true});
+  row.addEventListener('touchmove',e=>{
+    dx=e.touches[0].clientX-sx;
+    if(dx<-30){swiping=true;wrap.classList.add('swiped');}
+    if(dx>20&&wrap.classList.contains('swiped')){wrap.classList.remove('swiped');}
+  },{passive:true});
+  row.addEventListener('touchend',()=>{if(!swiping&&Math.abs(dx)<10){}},{passive:true});
+}
+// close any open swipe when tapping elsewhere
+document.addEventListener('touchstart',e=>{
+  if(!e.target.closest('.srow-wrap'))document.querySelectorAll('.srow-wrap.swiped').forEach(w=>w.classList.remove('swiped'));
+},{passive:true});
 
 // suggestions: delegated pointerdown (works on mouse, touch, stylus)
 document.getElementById('suggestions').addEventListener('pointerdown', function(e){
