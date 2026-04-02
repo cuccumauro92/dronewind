@@ -198,6 +198,14 @@ body{color-scheme:dark}
 /* locate me button */
 .loc-btn{position:absolute;top:10px;right:10px;z-index:500;background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--rd);padding:8px;cursor:pointer;color:var(--tx);font-size:16px;line-height:1;transition:border-color .15s}
 .loc-btn:hover{border-color:var(--G)}
+/* ── WINDOWS PANEL ─────────────────────────────── */
+.wcard{background:var(--bg2);border-radius:var(--rd);border:1px solid var(--bdr);padding:12px;margin-bottom:8px;border-left:3px solid var(--tx3)}
+.wcard-spot{font-size:13px;font-weight:700;margin-bottom:4px}
+.wcard-time{font-family:var(--mono);font-size:12px;color:var(--tx2);margin-bottom:4px}
+.wcard-data{font-family:var(--mono);font-size:11px;color:var(--tx3)}
+.wcard-badge{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:.05em;margin-bottom:6px}
+.wcard .day-bar{display:flex;gap:1px;margin-top:6px;height:6px;border-radius:3px;overflow:hidden}
+.wcard .day-bar span{flex:1;min-width:0}
 </style>
 </head>
 <body>
@@ -210,6 +218,7 @@ body{color-scheme:dark}
 <div id="cnt">
 <div id="tabs">
   <div class="tab on" data-p="wind">Vento</div>
+  <div class="tab" data-p="windows">Finestre</div>
   <div class="tab" data-p="map">Mappa</div>
   <div class="tab" data-p="gps">GPS</div>
   <div class="tab" data-p="settings">Config</div>
@@ -249,6 +258,12 @@ body{color-scheme:dark}
   </div>
   <div id="lupd"></div>
   <div id="slist" style="flex:1;overflow-y:auto"></div>
+</div>
+
+<!-- ══ WINDOWS ══════════════════════════════════ -->
+<div id="panel-windows" class="panel" style="padding:14px;gap:0">
+  <button class="btn" onclick="shareWindowsWA()" style="margin-bottom:12px">Invia riepilogo su WhatsApp</button>
+  <div id="wwin-list"><div class="empty pls">Caricamento finestre di volo...</div></div>
 </div>
 
 <!-- ══ MAP ═══════════════════════════════════════ -->
@@ -1092,12 +1107,179 @@ function restoreNotif(){
   }
 }
 
-// patch checkAll to call notifications
+// patch checkAll to call notifications + best windows
 const _origCheckAll=checkAll;
 checkAll=async function(){
   await _origCheckAll();
   checkFavNotifications();
+  loadBestWindows();
 };
+
+// ══ BEST FLIGHT WINDOWS ════════════════════════════════════
+let _bwData=null,_bwTs=0;
+
+async function loadBestWindows(){
+  const el=document.getElementById('wwin-list');
+  if(el)el.innerHTML='<div class="empty pls">Caricamento finestre di volo...</div>';
+
+  // pick spots: favorites first, else first 5
+  let spots=AS().filter(s=>isFav(s));
+  if(!spots.length)spots=AS().slice(0,5);
+
+  const pad=n=>String(n).padStart(2,'0');
+
+  // build 3-day date range
+  const now=new Date();
+  const startDate=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
+
+  // fetch 72h for each unique coordinate
+  const uq={};
+  spots.forEach(s=>{
+    const k=ck(s.lat,s.lng);
+    if(!uq[k])uq[k]={lat:s.lat,lng:s.lng,spots:[s]};
+    else uq[k].spots.push(s);
+  });
+
+  const allWindows=[];
+
+  await Promise.all(Object.entries(uq).map(async([k,{lat,lng,spots:coordSpots}])=>{
+    try{
+      const u='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lng+'&hourly=windspeed_10m,windspeed_80m,windgusts_10m,winddirection_10m&windspeed_unit=kmh&timezone=Europe%2FRome&forecast_days=3';
+      const res=await fetch(u);
+      if(!res.ok)return;
+      const d=await res.json();
+      const hours=d.hourly.time.map((t,i)=>{
+        const v10=d.hourly.windspeed_10m[i]||0;
+        const v80=d.hourly.windspeed_80m[i]||v10*1.2;
+        const v50=v10+(v80-v10)*(40/70);
+        const g=d.hourly.windgusts_10m[i]||0;
+        return{time:t,hr:parseInt(t.split('T')[1]),day:t.split('T')[0],v50:Math.round(v50),g:Math.round(g),v10:Math.round(v10)};
+      });
+
+      // find flyable consecutive hours
+      coordSpots.forEach(sp=>{
+        let block=[];
+        const flush=()=>{
+          if(block.length>=2){
+            const maxW=Math.max(...block.map(h=>Math.max(h.v50,h.g)));
+            const avgV50=Math.round(block.reduce((s,h)=>s+h.v50,0)/block.length);
+            const minV50=Math.min(...block.map(h=>h.v50));
+            const maxV50=Math.max(...block.map(h=>h.v50));
+            const maxG=Math.max(...block.map(h=>h.g));
+            const rating=maxW<=15?'OTTIMO':maxW<=30?'BUONO':'ATTENZIONE';
+            const ratingOrder=rating==='OTTIMO'?0:rating==='BUONO'?1:2;
+            allWindows.push({
+              spot:sp,
+              day:block[0].day,
+              startHr:block[0].hr,
+              endHr:block[block.length-1].hr+1,
+              avgV50,minV50,maxV50,maxG,
+              rating,ratingOrder,
+              dayHours:hours.filter(h=>h.day===block[0].day)
+            });
+          }
+          block=[];
+        };
+        hours.forEach(h=>{
+          const w=Math.max(h.v50,h.g);
+          if(w<=MV){
+            if(block.length&&(h.day!==block[block.length-1].day||h.hr!==block[block.length-1].hr+1)){
+              flush();
+            }
+            block.push(h);
+          }else{
+            flush();
+          }
+        });
+        flush();
+      });
+    }catch{}
+  }));
+
+  // sort: quality first, then date
+  allWindows.sort((a,b)=>a.ratingOrder-b.ratingOrder||a.day.localeCompare(b.day)||a.startHr-b.startHr);
+
+  _bwData=allWindows.slice(0,10);
+  _bwTs=Date.now();
+  renderBestWindows();
+}
+
+function fmtWindowDay(dayStr){
+  const today=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const todayStr=today.getFullYear()+'-'+pad(today.getMonth()+1)+'-'+pad(today.getDate());
+  const tom=new Date(today);tom.setDate(tom.getDate()+1);
+  const tomStr=tom.getFullYear()+'-'+pad(tom.getMonth()+1)+'-'+pad(tom.getDate());
+  if(dayStr===todayStr)return'Oggi';
+  if(dayStr===tomStr)return'Domani';
+  const d=new Date(dayStr+'T00:00:00');
+  const days=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+  const pad2=n=>String(n).padStart(2,'0');
+  return days[d.getDay()]+' '+pad2(d.getDate())+'/'+pad2(d.getMonth()+1);
+}
+
+function renderBestWindows(){
+  const el=document.getElementById('wwin-list');
+  if(!_bwData){el.innerHTML='<div class="empty">Premi Controlla nel tab Vento</div>';return;}
+  if(!_bwData.length){el.innerHTML='<div class="empty">Nessuna finestra di volo trovata nei prossimi 3 giorni</div>';return;}
+
+  const pad=n=>String(n).padStart(2,'0');
+  let h='';
+  _bwData.forEach(w=>{
+    const rClr=w.rating==='OTTIMO'?'var(--G)':w.rating==='BUONO'?'var(--Y)':'var(--A)';
+    const rBg=w.rating==='OTTIMO'?'var(--Gbg)':w.rating==='BUONO'?'var(--Ybg)':'var(--Abg)';
+    const rBd=w.rating==='OTTIMO'?'var(--Gbd)':w.rating==='BUONO'?'var(--Ybd)':'var(--Abd)';
+    const emoji=w.rating==='OTTIMO'?'&#10003;':w.rating==='BUONO'?'&#10003;':'&#9888;';
+
+    // day bar: 24 hours color-coded
+    let bar='<div class="day-bar">';
+    if(w.dayHours&&w.dayHours.length){
+      w.dayHours.forEach(dh=>{
+        const ww=Math.max(dh.v50,dh.g);
+        const c=ww>MV?'var(--R)':ww>30?'var(--A)':ww>15?'var(--Y)':'var(--G)';
+        const inWindow=(dh.day===w.day&&dh.hr>=w.startHr&&dh.hr<w.endHr);
+        const opacity=inWindow?'1':'0.3';
+        bar+='<span style="background:'+c+';opacity:'+opacity+'" title="'+pad(dh.hr)+':00 v50:'+dh.v50+' g:'+dh.g+'"></span>';
+      });
+    }
+    bar+='</div>';
+
+    h+='<div class="wcard" style="border-left-color:'+rClr+'">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+    h+='<div class="wcard-spot">'+esc(w.spot.name)+'</div>';
+    h+='<span class="wcard-badge" style="background:'+rBg+';color:'+rClr+';border:1px solid '+rBd+'">'+w.rating+'</span>';
+    h+='</div>';
+    h+='<div class="wcard-time">'+fmtWindowDay(w.day)+' '+pad(w.startHr)+':00 \u2013 '+pad(w.endHr)+':00 ('+( w.endHr-w.startHr)+'h)</div>';
+    h+='<div class="wcard-data">Vento 50m: '+w.minV50+'\u2013'+w.maxV50+' km/h \u00b7 Raffiche max: '+w.maxG+' km/h</div>';
+    h+=bar;
+    h+='</div>';
+  });
+  el.innerHTML=h;
+}
+
+function shareWindowsWA(){
+  if(!_bwData||!_bwData.length){toast('Nessuna finestra da condividere');return;}
+  const pad=n=>String(n).padStart(2,'0');
+  const now=new Date();
+  let txt='\ud83d\udef8 DroneWind \u2014 Migliori finestre di volo\n\n';
+  _bwData.forEach(w=>{
+    const emoji=w.rating==='OTTIMO'?'\u2705':w.rating==='BUONO'?'\ud83d\udfe1':'\u26a0\ufe0f';
+    txt+='\ud83d\udccd '+w.spot.name+'\n';
+    txt+=emoji+' '+w.rating+' \u00b7 '+fmtWindowDay(w.day)+' '+pad(w.startHr)+':00-'+pad(w.endHr)+':00\n';
+    txt+='   Vento 50m: '+w.minV50+'-'+w.maxV50+' km/h \u00b7 Raffiche max: '+w.maxG+' km/h\n\n';
+  });
+  txt+='Aggiornato: '+pad(now.getDate())+'/'+pad(now.getMonth()+1)+' ore '+pad(now.getHours())+':'+pad(now.getMinutes());
+  window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
+}
+
+// auto-load windows when tab clicked (if stale >5min)
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    if(t.dataset.p==='windows'&&(Date.now()-_bwTs>300000)){
+      loadBestWindows();
+    }
+  });
+});
 
 restoreTheme();
 restoreNotif();
