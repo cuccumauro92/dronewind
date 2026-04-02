@@ -10,6 +10,8 @@
 <link rel="manifest" href="./manifest.json">
 <title>DroneWind</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{--bg:#0a0f0d;--bg2:#111815;--bg3:#1a2420;--bdr:rgba(255,255,255,.07);--bdr2:rgba(255,255,255,.14);
 --tx:#e8f0ec;--tx2:#7a9488;--tx3:#4a6058;
@@ -157,6 +159,21 @@ a.ext:hover{text-decoration:underline}
 .mshare{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--Gbg);border:1px solid var(--Gbd);border-radius:8px;color:var(--G);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:opacity .15s}
 .mshare:hover{opacity:.8}
 .mshare svg{width:14px;height:14px;fill:currentColor}
+/* #4 — map */
+#panel-map{padding:0;position:relative}
+#map{width:100%;height:100%;min-height:300px}
+.leaflet-container{background:var(--bg)!important;font-family:var(--sans)!important}
+.map-pop{font-family:var(--sans);font-size:12px;line-height:1.5}
+.map-pop b{font-weight:700}
+.map-pop .mp-status{font-weight:700;font-size:11px;padding:2px 6px;border-radius:10px;display:inline-block;margin-bottom:4px}
+/* #3 — timeline */
+.tline{display:flex;gap:2px;overflow-x:auto;padding:8px 0;scrollbar-width:none;margin-bottom:14px}
+.tline::-webkit-scrollbar{display:none}
+.th{display:flex;flex-direction:column;align-items:center;min-width:38px;padding:6px 4px;border-radius:6px;font-family:var(--mono);font-size:10px;gap:2px;cursor:default;border:1px solid transparent}
+.th.now{border-color:var(--bdr2);background:var(--bg3)}
+.th-hr{font-weight:700;color:var(--tx)}
+.th-v{font-size:9px}
+.th-g{font-size:9px;opacity:.7}
 </style>
 </head>
 <body>
@@ -168,6 +185,7 @@ a.ext:hover{text-decoration:underline}
 <div id="cnt">
 <div id="tabs">
   <div class="tab on" data-p="wind">Vento</div>
+  <div class="tab" data-p="map">Mappa</div>
   <div class="tab" data-p="gps">GPS</div>
   <div class="tab" data-p="settings">Config</div>
 </div>
@@ -206,6 +224,11 @@ a.ext:hover{text-decoration:underline}
   </div>
   <div id="lupd"></div>
   <div id="slist" style="flex:1;overflow-y:auto"></div>
+</div>
+
+<!-- ══ MAP ═══════════════════════════════════════ -->
+<div id="panel-map" class="panel">
+  <div id="map"></div>
 </div>
 
 <!-- ══ GPS ═══════════════════════════════════════ -->
@@ -369,6 +392,34 @@ async function fw(lat,lng,ds,hr){
   return{v10:Math.round(v10),v50:Math.round(v50),g:Math.round(g),dir:Math.round(dr)};
 }
 
+// #3 — fetch all 24 hours for a spot
+async function fwAll(lat,lng,ds){
+  const u='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lng+'&hourly=windspeed_10m,windspeed_80m,windgusts_10m,winddirection_10m&windspeed_unit=kmh&timezone=Europe%2FRome&start_date='+ds+'&end_date='+ds;
+  const r=await fetch(u);if(!r.ok)throw 0;
+  const d=await r.json();
+  return d.hourly.time.map((t,i)=>{
+    const v10=d.hourly.windspeed_10m[i]||0,v80=d.hourly.windspeed_80m[i]||v10*1.2;
+    const v50=v10+(v80-v10)*(40/70);
+    return{hr:parseInt(t.split('T')[1]),v10:Math.round(v10),v50:Math.round(v50),g:Math.round(d.hourly.windgusts_10m[i]||0),dir:Math.round(d.hourly.winddirection_10m[i]||0)};
+  });
+}
+
+function renderTimeline(hours,currentHr){
+  let h='<div class="tline">';
+  hours.forEach(hr=>{
+    const w=Math.max(hr.v50,hr.g);
+    const clr=w>MV?'var(--R)':w>30?'var(--A)':w>15?'var(--Y)':'var(--G)';
+    const isCur=hr.hr===currentHr;
+    h+='<div class="th'+(isCur?' now':'')+'" style="color:'+clr+'" title="'+hr.hr+':00 — 50m:'+hr.v50+' raff:'+hr.g+'">';
+    h+='<span class="th-hr">'+String(hr.hr).padStart(2,'0')+'</span>';
+    h+='<span class="th-v">'+hr.v50+'</span>';
+    h+='<span class="th-g">↑'+hr.g+'</span>';
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
+}
+
 async function checkAll(){
   const b=document.getElementById('chkbtn');
   b.disabled=true;b.textContent='...';WD={};renderSpots();hideSug();
@@ -382,7 +433,7 @@ async function checkAll(){
   }));
   lastUpd=new Date();
   localStorage.setItem('wd_cache',JSON.stringify({data:WD,ts:lastUpd.getTime()}));
-  renderSpots();updSum();showLupd();
+  renderSpots();updSum();showLupd();updMapMarkers();
   b.disabled=false;b.textContent='Aggiorna';
 }
 
@@ -560,8 +611,15 @@ function showTempWindModal(s){
     '<div class="mname">'+esc(s.name)+'</div>'+
     '<div class="msec">'+s.lat.toFixed(5)+', '+s.lng.toFixed(5)+'</div>'+
     '<div id="tmp-wind" style="color:var(--tx3);font-size:13px;padding:10px 0 14px;font-family:var(--mono)" class="pls">Caricamento vento...</div>'+
+    '<div id="modal-tl" style="margin-bottom:6px"><div style="color:var(--tx3);font-size:11px;font-family:var(--mono)" class="pls">Caricamento previsione 24h...</div></div>'+
     navHtml;
   document.getElementById('ov').classList.add('on');
+
+  // load 24h timeline
+  fwAll(s.lat,s.lng,ds).then(hours=>{
+    const el=document.getElementById('modal-tl');
+    if(el){el.innerHTML='<div class="navlbl">Previsione 24h</div>'+renderTimeline(hours,dt.getHours());}
+  }).catch(()=>{const el=document.getElementById('modal-tl');if(el)el.innerHTML='';});
 
   fw(s.lat, s.lng, ds, dt.getHours()).then(r=>{
     const x=st(r);
@@ -706,6 +764,7 @@ function openM(tid){
     '<div class="mname">'+esc(sp.name)+'</div>'+
     '<div class="msec">'+(sp.sec||'')+' · '+sp.lat.toFixed(4)+', '+sp.lng.toFixed(4)+'</div>'+
     nh+sh+
+    '<div id="modal-tl" style="margin-bottom:6px"><div style="color:var(--tx3);font-size:11px;font-family:var(--mono)" class="pls">Caricamento previsione 24h...</div></div>'+
     '<div class="navlbl">Naviga verso questo spot</div>'+
     '<div class="navbtns">'+
       '<a class="nb pr" href="'+gm+'" target="_blank"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Google Maps</a>'+
@@ -720,6 +779,21 @@ function openM(tid){
       rem+
     '</div>';
   document.getElementById('ov').classList.add('on');
+  // #3 — load 24h timeline
+  const dt=getDT();const p2=n=>String(n).padStart(2,'0');
+  const ds2=dt.getFullYear()+'-'+p2(dt.getMonth()+1)+'-'+p2(dt.getDate());
+  fwAll(sp.lat,sp.lng,ds2).then(hours=>{
+    const el=document.getElementById('modal-tl');
+    if(el){
+      el.innerHTML='<div class="navlbl">Previsione 24h — '+ds2+'</div>'+renderTimeline(hours,dt.getHours());
+      // scroll to current hour
+      const cur=el.querySelector('.th.now');
+      if(cur)cur.scrollIntoView({inline:'center',block:'nearest'});
+    }
+  }).catch(()=>{
+    const el=document.getElementById('modal-tl');
+    if(el)el.innerHTML='';
+  });
 }
 
 function cmClose(e){if(e.target===document.getElementById('ov'))document.getElementById('ov').classList.remove('on');}
@@ -781,6 +855,42 @@ document.getElementById('suggestions').addEventListener('pointerdown', function(
 // close suggestions clicking outside
 document.addEventListener('pointerdown', function(e){
   if(!e.target.closest('#suggestions') && !e.target.closest('.r2')) hideSug();
+});
+
+// #4 — Leaflet map
+let LMap=null,LMarkers=[];
+function initMap(){
+  if(LMap)return;
+  LMap=L.map('map',{zoomControl:true,attributionControl:false}).setView([39.59,8.89],11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(LMap);
+  updMapMarkers();
+}
+function updMapMarkers(){
+  if(!LMap)return;
+  LMarkers.forEach(m=>LMap.removeLayer(m));LMarkers=[];
+  AS().forEach(sp=>{
+    const r=WD[ck(sp.lat,sp.lng)];const x=st(r);
+    const colors={ottimo:'#3dffa0',go:'#c8e944',warn:'#ffb347',nogo:'#ff5252'};
+    const labels={ottimo:'OTTIMO',go:'BUONO',warn:'ATTENZIONE',nogo:'NO VOLO'};
+    const c=x?colors[x]:'#4a6058';
+    const icon=L.divIcon({className:'',html:'<div style="width:14px;height:14px;border-radius:50%;background:'+c+';border:2px solid rgba(255,255,255,.3);box-shadow:0 0 6px '+c+'"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+    const mk=L.marker([sp.lat,sp.lng],{icon}).addTo(LMap);
+    let pop='<div class="map-pop"><b>'+esc(sp.name)+'</b><br>';
+    if(r&&x){
+      const lbl=labels[x]||'—';
+      pop+='<span class="mp-status" style="background:'+c+'22;color:'+c+';border:1px solid '+c+'44">'+lbl+'</span><br>';
+      pop+='50m: '+r.v50+' km/h · Raff: '+r.g+' km/h<br>'+d2a(r.dir)+' '+r.dir+'°';
+    }else{pop+='<span style="color:#4a6058">Nessun dato</span>';}
+    pop+='</div>';
+    mk.bindPopup(pop,{className:'map-pop-wrap'});
+    LMarkers.push(mk);
+  });
+}
+// init map when tab is shown (Leaflet needs visible container)
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    if(t.dataset.p==='map')setTimeout(()=>{initMap();LMap.invalidateSize();},100);
+  });
 });
 
 init();
