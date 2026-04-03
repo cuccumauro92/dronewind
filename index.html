@@ -1306,21 +1306,22 @@ function applyWindowFilters(){
     filtered=filtered.filter(w=>w.dist<=maxDistVal);
   }
 
-  // 4. sort by "dist" requires distance point and only OTTIMO/BUONO
-  if(sortMode==='dist'){
-    if(!distPt){filtered=[];} else {
-      filtered=filtered.filter(w=>w.ratingOrder<=1);
-      filtered.sort((a,b)=>a.dist-b.dist);
-    }
+  // 4. sort — if distance sort requested but no GPS, ask user and fallback
+  if((sortMode==='dist'||sortMode==='dist-wind')&&!distPt){
+    toast('Attiva il GPS o inserisci coordinate per ordinare per distanza');
+    // fallback: sort by wind quality
+    filtered=filtered.filter(w=>w.ratingOrder<=1);
+    filtered.sort((a,b)=>a.ratingOrder-b.ratingOrder||a.maxWorst-b.maxWorst);
+  }else if(sortMode==='dist'){
+    filtered=filtered.filter(w=>w.ratingOrder<=1);
+    filtered.sort((a,b)=>a.dist-b.dist);
   }else if(sortMode==='wind'){
     filtered.sort((a,b)=>a.ratingOrder-b.ratingOrder||a.maxWorst-b.maxWorst);
   }else if(sortMode==='wind-dist'){
-    if(distPt){filtered.sort((a,b)=>a.ratingOrder-b.ratingOrder||(a.dist||0)-(b.dist||0));}
+    if(distPt){filtered.sort((a,b)=>a.ratingOrder-b.ratingOrder||a.dist-b.dist);}
     else{filtered.sort((a,b)=>a.ratingOrder-b.ratingOrder||a.maxWorst-b.maxWorst);}
   }else if(sortMode==='dist-wind'){
-    if(!distPt){filtered=[];} else {
-      filtered.sort((a,b)=>(a.dist||0)-(b.dist||0)||a.ratingOrder-b.ratingOrder);
-    }
+    filtered.sort((a,b)=>a.dist-b.dist||a.ratingOrder-b.ratingOrder);
   }else if(sortMode==='time'){
     filtered.sort((a,b)=>a.day.localeCompare(b.day)||a.startHr-b.startHr);
   }
