@@ -364,16 +364,39 @@ const FS=[
   {id:19,sec:"Gite dedicate",name:"Parco della Giara — Tuili",lat:39.7319,lng:8.9743,note:"Parco naturale"},
   {id:20,sec:"Gite dedicate",name:"Su Nuraxi — Barumini",lat:39.7059,lng:8.9907,note:"UNESCO"},
 ];
-let CS=JSON.parse(localStorage.getItem('cs')||'[]');
+// Seed allSpots from FS on first load
+if(!localStorage.getItem('allSpots')){
+  localStorage.setItem('allSpots',JSON.stringify(FS.map(s=>({...s}))));
+}
+let CS=JSON.parse(localStorage.getItem('allSpots')||JSON.stringify(FS));
+// Migrate old custom spots from 'cs' into allSpots (one-time)
+(function(){
+  const oldCS=JSON.parse(localStorage.getItem('cs')||'[]');
+  if(oldCS.length){
+    oldCS.forEach(s=>{if(!CS.find(x=>x.id===s.id))CS.push(s);});
+    localStorage.setItem('allSpots',JSON.stringify(CS));
+    localStorage.removeItem('cs');
+  }
+})();
 let FAVS=JSON.parse(localStorage.getItem('favs')||'[]');
+// Migrate old FAVS format: "f1","c123" → "1","123"
+(function(){
+  let changed=false;
+  FAVS=FAVS.map(f=>{
+    if(typeof f==='string'&&(f[0]==='f'||f[0]==='c')){changed=true;return f.slice(1);}
+    return String(f);
+  });
+  if(changed)localStorage.setItem('favs',JSON.stringify(FAVS));
+})();
 let WD={},AF=null,DI=null,MP=null,SRec=null,autoRefId=null,lastUpd=null;
 let sugData=[],sugIdx=-1,srchDebounce=null;
 
-function AS(){return[...FS,...CS];}
-function isFav(s){const k=(s.c?'c':'f')+s.id;return FAVS.includes(k);}
+function AS(){return CS;}
+function isFav(s){return FAVS.includes(String(s.id));}
 function toggleFav(tid){
-  const i=FAVS.indexOf(tid);
-  if(i>=0)FAVS.splice(i,1);else FAVS.push(tid);
+  const id=String(tid);
+  const i=FAVS.indexOf(id);
+  if(i>=0)FAVS.splice(i,1);else FAVS.push(id);
   localStorage.setItem('favs',JSON.stringify(FAVS));
   renderSpots();if(Object.keys(WD).length)updSum();
 }
@@ -537,12 +560,11 @@ function renderSpots(){
     }
     if(AF&&hd)spots=spots.filter(s=>st(WD[ck(s.lat,s.lng)])===AF);
     if(!spots.length)return;
-    const isCustomSec=CS.some(s=>s.sec===sec);
-    const editIcon=isCustomSec&&sec!=='Preferiti'?'<span class="cat-edit" data-cat="'+esc(sec)+'" onclick="event.stopPropagation();renameCat(this.dataset.cat)">&#9998;</span>':'';
+    const editIcon=sec!=='Preferiti'?'<span class="cat-edit" data-cat="'+esc(sec)+'" onclick="event.stopPropagation();renameCat(this.dataset.cat)">&#9998;</span>':'';
     h+='<div class="shdr">'+esc(sec)+editIcon+'</div>';
     spots.forEach(sp=>{
       const r=WD[ck(sp.lat,sp.lng)];const x=st(r);
-      const tid=(sp.c?'c':'f')+sp.id;
+      const tid=String(sp.id);
       const ct=sp.c?'<span class="stag">custom</span>':'';
       const star='<span class="fav'+(isFav(sp)?' on':'')+'" onclick="event.stopPropagation();toggleFav(\''+tid+'\')">'+(isFav(sp)?'★':'☆')+'</span>';
       let bdg='<span class="bdg bem">—</span>',dh='';
@@ -556,11 +578,7 @@ function renderSpots(){
         bdg='<span class="bdg '+bcl+'">'+lbl+'</span>';
       }else if(!hd){dh='<span style="font-size:11px;color:var(--tx3);font-family:var(--mono)">premi Controlla</span>';}
       else{dh='<span style="font-size:11px;color:var(--tx3);font-family:var(--mono)" class="pls">caricamento...</span>';}
-      if(sp.c){
-        h+='<div class="srow-wrap" data-cid="'+sp.id+'"><div class="srow" onclick="openM(\''+tid+'\')"><div><div class="sname">'+star+'<span class="snum">'+sp.id+'.</span>'+sp.name+ct+'</div>'+dh+'</div><div>'+bdg+'</div></div><div class="sdel" onclick="remC('+sp.id+')">Elimina</div></div>';
-      }else{
-        h+='<div class="srow" onclick="openM(\''+tid+'\')"><div><div class="sname">'+star+'<span class="snum">'+sp.id+'.</span>'+sp.name+ct+'</div>'+dh+'</div><div>'+bdg+'</div></div>';
-      }
+      h+='<div class="srow-wrap" data-cid="'+sp.id+'"><div class="srow" onclick="openM(\''+tid+'\')"><div><div class="sname">'+star+'<span class="snum">'+sp.id+'.</span>'+sp.name+ct+'</div>'+dh+'</div><div>'+bdg+'</div></div><div class="sdel" onclick="remC('+sp.id+')">Elimina</div></div>';
     });
   });
   el.innerHTML=h||'<div class="empty">Nessuno spot corrisponde al filtro</div>';
@@ -639,7 +657,7 @@ function selectSug(i){
   hideSug();
   document.getElementById('srch').value='';
   if(s.isSpot){
-    openM((FS.find(x=>x.id===s.spotId)?'f':'c')+s.spotId);
+    openM(String(s.spotId));
     return;
   }
   // immediately open modal with wind fetch — no intermediate step
@@ -711,7 +729,7 @@ function quickAddSpot(){
   const existing=CS.find(c=>Math.abs(c.lat-s.lat)<0.001&&Math.abs(c.lng-s.lng)<0.001);
   if(existing){toast('📍 Già in lista: '+s.name);return;}
   CS.push({id:Date.now(),sec:'Posti custom',name:s.name,lat:s.lat,lng:s.lng,c:true});
-  localStorage.setItem('cs',JSON.stringify(CS));
+  localStorage.setItem('allSpots',JSON.stringify(CS));
   renderSpots();
   toast('✓ Aggiunto: '+s.name);
   document.getElementById('ov').classList.remove('on');
@@ -726,7 +744,7 @@ async function addCustom(){
     const lat=parseFloat(cm[1]),lng=parseFloat(cm[2]);
     const name='Spot '+lat.toFixed(4)+','+lng.toFixed(4);
     CS.push({id:Date.now(),sec:'Posti custom',name,lat,lng,c:true});
-    localStorage.setItem('cs',JSON.stringify(CS));
+    localStorage.setItem('allSpots',JSON.stringify(CS));
     el.value='';renderSpots();toast('✓ Aggiunto: '+name);
   } else {
     toast('Seleziona dal menu o usa coordinate lat,lng');
@@ -792,7 +810,7 @@ function renderGPS(spots){
     const bl=!x?'—':x==='ottimo'?'OTTIMO':x==='go'?'BUONO':x==='warn'?'ATTENZIONE':'NO VOLO';
     const dist=s.d<1?Math.round(s.d*1000)+'m':s.d.toFixed(1)+'km';
     const wi=r?'<div style="font-family:var(--mono);font-size:11px;color:var(--tx2);margin-top:4px">50m: '+r.v50+'km/h · raffiche: '+r.g+'km/h</div>':'';
-    const tid=(s.c?'c':'f')+s.id;
+    const tid=String(s.id);
     return'<div class="gsp" onclick="openM(\''+tid+'\')"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><strong style="font-size:13px">'+s.name+'</strong><span class="bdg '+bcl+'">'+bl+'</span></div><div style="display:flex;gap:8px;align-items:center"><span class="dp">'+dist+'</span><span style="font-size:11px;color:var(--tx3)">'+s.sec+'</span></div>'+wi+'</div>';
   }).join('');
 }
@@ -800,8 +818,8 @@ function renderGPS(spots){
 // ══ MODAL ════════════════════════════════════════════════════
 function openM(tid){
   hideSug();
-  const isC=tid[0]==='c';const id=parseInt(tid.slice(1));
-  const sp=isC?CS.find(s=>s.id===id):FS.find(s=>s.id===id);
+  const id=typeof tid==='number'?tid:parseInt(tid);
+  const sp=CS.find(s=>s.id===id);
   if(!sp)return;
   const r=WD[ck(sp.lat,sp.lng)];const x=st(r);
   const gm='https://www.google.com/maps/dir/?api=1&destination='+sp.lat+','+sp.lng;
@@ -818,11 +836,11 @@ function openM(tid){
     sh='<div style="margin-bottom:12px"><span class="bdg '+bcl+'" style="font-size:12px;padding:6px 14px">'+bl+'</span></div><div class="mgrid"><div class="mst"><div class="mstl">Terra 10m</div><div class="mstv" style="color:'+clr+'">'+r.v10+' <span style="font-size:13px">km/h</span></div></div><div class="mst"><div class="mstl">Quota 50m</div><div class="mstv" style="color:'+clr+'">'+r.v50+' <span style="font-size:13px">km/h</span></div></div><div class="mst"><div class="mstl">Raffiche</div><div class="mstv" style="color:'+clr+'">'+r.g+' <span style="font-size:13px">km/h</span></div></div><div class="mst"><div class="mstl">Direzione</div><div class="mstv">'+d2a(r.dir)+' <span style="font-size:15px">'+r.dir+'°</span></div></div></div>';
   }else{sh='<p style="color:var(--tx3);font-size:13px;margin-bottom:14px">Nessun dato vento — premi Controlla nel tab Vento</p>';}
   const nh=sp.note?'<div class="note-box">⚠ '+sp.note+'</div>':'';
-  const rem=isC?'<button class="ml" style="color:var(--R);border-color:var(--Rbd)" onclick="remC('+id+')">Rimuovi</button>':'';
-  const renameBtn=isC?'<button class="ml" onclick="renameSpot('+id+')">Rinomina</button>':'';
-  // category move dropdown for custom spots
+  const rem='<button class="ml" style="color:var(--R);border-color:var(--Rbd)" onclick="remC('+id+')">Rimuovi</button>';
+  const renameBtn='<button class="ml" onclick="renameSpot('+id+')">Rinomina</button>';
+  // category move dropdown for all spots
   let catMoveHtml='';
-  if(isC){
+  {
     const allCats=[...new Set(AS().map(s=>s.sec))];
     catMoveHtml='<div class="navlbl" style="margin-top:10px">Sposta in categoria</div><select class="msel" onchange="moveSpotCat('+id+',this.value)">';
     allCats.forEach(c=>{catMoveHtml+='<option value="'+esc(c)+'"'+(c===sp.sec?' selected':'')+'>'+esc(c)+'</option>';});
@@ -867,7 +885,7 @@ function openM(tid){
 }
 
 function cmClose(e){if(e.target===document.getElementById('ov'))document.getElementById('ov').classList.remove('on');}
-function remC(id){CS=CS.filter(s=>s.id!==id);localStorage.setItem('cs',JSON.stringify(CS));document.getElementById('ov').classList.remove('on');renderSpots();toast('Spot rimosso');}
+function remC(id){CS=CS.filter(s=>s.id!==id);localStorage.setItem('allSpots',JSON.stringify(CS));document.getElementById('ov').classList.remove('on');renderSpots();toast('Spot rimosso');}
 
 // ══ PWA ══════════════════════════════════════════════════════
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DI=e;document.getElementById('ic').style.display='block';});
@@ -988,7 +1006,7 @@ function renameSpot(id){
   const nn=prompt('Nuovo nome per lo spot:',sp.name);
   if(!nn||!nn.trim())return;
   sp.name=nn.trim();
-  localStorage.setItem('cs',JSON.stringify(CS));
+  localStorage.setItem('allSpots',JSON.stringify(CS));
   renderSpots();
   document.getElementById('ov').classList.remove('on');
   toast('Spot rinominato');
@@ -1005,7 +1023,7 @@ function moveSpotCat(id,val){
   }else{
     sp.sec=val;
   }
-  localStorage.setItem('cs',JSON.stringify(CS));
+  localStorage.setItem('allSpots',JSON.stringify(CS));
   renderSpots();
   document.getElementById('ov').classList.remove('on');
   toast('Spot spostato in: '+sp.sec);
@@ -1016,7 +1034,7 @@ function renameCat(oldName){
   const nn=prompt('Rinomina categoria "'+oldName+'":',oldName);
   if(!nn||!nn.trim()||nn.trim()===oldName)return;
   CS.forEach(s=>{if(s.sec===oldName)s.sec=nn.trim();});
-  localStorage.setItem('cs',JSON.stringify(CS));
+  localStorage.setItem('allSpots',JSON.stringify(CS));
   renderSpots();
   toast('Categoria rinominata');
 }
@@ -1134,15 +1152,10 @@ async function loadBestWindows(){
   const el=document.getElementById('wwin-list');
   if(el)el.innerHTML='<div class="empty pls">Caricamento finestre di volo...</div>';
 
-  // pick spots: favorites first, else first 5
-  let spots=AS().filter(s=>isFav(s));
-  if(!spots.length)spots=AS().slice(0,5);
+  // use ALL spots
+  let spots=AS();
 
   const pad=n=>String(n).padStart(2,'0');
-
-  // build 3-day date range
-  const now=new Date();
-  const startDate=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
 
   // fetch 72h for each unique coordinate
   const uq={};
@@ -1168,50 +1181,52 @@ async function loadBestWindows(){
         return{time:t,hr:parseInt(t.split('T')[1]),day:t.split('T')[0],v50:Math.round(v50),g:Math.round(g),v10:Math.round(v10)};
       });
 
-      // find flyable consecutive hours
+      // group hours by day
+      const byDay={};
+      hours.forEach(h=>{if(!byDay[h.day])byDay[h.day]=[];byDay[h.day].push(h);});
+
+      // find best 2h block per spot per day
       coordSpots.forEach(sp=>{
-        let block=[];
-        const flush=()=>{
-          if(block.length>=2){
-            const maxW=Math.max(...block.map(h=>Math.max(h.v50,h.g)));
-            const avgV50=Math.round(block.reduce((s,h)=>s+h.v50,0)/block.length);
-            const minV50=Math.min(...block.map(h=>h.v50));
-            const maxV50=Math.max(...block.map(h=>h.v50));
-            const maxG=Math.max(...block.map(h=>h.g));
-            const rating=maxW<=15?'OTTIMO':maxW<=30?'BUONO':'ATTENZIONE';
+        Object.entries(byDay).forEach(([day,dayHrs])=>{
+          let bestWindow=null;
+          for(let i=0;i<dayHrs.length-1;i++){
+            const h0=dayHrs[i],h1=dayHrs[i+1];
+            // must be consecutive hours
+            if(h1.hr!==h0.hr+1)continue;
+            const w0=Math.max(h0.v50,h0.g),w1=Math.max(h1.v50,h1.g);
+            // both hours must be flyable
+            if(w0>MV||w1>MV)continue;
+            const maxWorst=Math.max(w0,w1);
+            if(!bestWindow||maxWorst<bestWindow.maxWorst){
+              bestWindow={h0,h1,maxWorst};
+            }
+          }
+          if(bestWindow){
+            const {h0,h1,maxWorst}=bestWindow;
+            const minV50=Math.min(h0.v50,h1.v50);
+            const maxV50=Math.max(h0.v50,h1.v50);
+            const maxG=Math.max(h0.g,h1.g);
+            const rating=maxWorst<=15?'OTTIMO':maxWorst<=30?'BUONO':'ATTENZIONE';
             const ratingOrder=rating==='OTTIMO'?0:rating==='BUONO'?1:2;
             allWindows.push({
               spot:sp,
-              day:block[0].day,
-              startHr:block[0].hr,
-              endHr:block[block.length-1].hr+1,
-              avgV50,minV50,maxV50,maxG,
+              day:day,
+              startHr:h0.hr,
+              endHr:h1.hr+1,
+              minV50,maxV50,maxG,
               rating,ratingOrder,
-              dayHours:hours.filter(h=>h.day===block[0].day)
+              dayHours:dayHrs
             });
           }
-          block=[];
-        };
-        hours.forEach(h=>{
-          const w=Math.max(h.v50,h.g);
-          if(w<=MV){
-            if(block.length&&(h.day!==block[block.length-1].day||h.hr!==block[block.length-1].hr+1)){
-              flush();
-            }
-            block.push(h);
-          }else{
-            flush();
-          }
         });
-        flush();
       });
     }catch{}
   }));
 
-  // sort: quality first, then date
+  // sort: quality first (OTTIMO first), then date
   allWindows.sort((a,b)=>a.ratingOrder-b.ratingOrder||a.day.localeCompare(b.day)||a.startHr-b.startHr);
 
-  _bwData=allWindows.slice(0,10);
+  _bwData=allWindows.slice(0,20);
   _bwTs=Date.now();
   renderBestWindows();
 }
@@ -1256,7 +1271,7 @@ function renderBestWindows(){
     }
     bar+='</div>';
 
-    h+='<div class="wcard" style="border-left-color:'+rClr+'">';
+    h+='<div class="wcard" style="border-left-color:'+rClr+';cursor:pointer" onclick="openM(\''+w.spot.id+'\')">';
     h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
     h+='<div class="wcard-spot">'+esc(w.spot.name)+'</div>';
     h+='<span class="wcard-badge" style="background:'+rBg+';color:'+rClr+';border:1px solid '+rBd+'">'+w.rating+'</span>';
