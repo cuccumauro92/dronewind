@@ -2,15 +2,31 @@
 // Runs on Cloudflare Workers with KV storage + Cron triggers
 // Checks wind conditions every 3h and sends push notifications
 
+// Mirror of FS array in index.html — keep in sync when adding spots
 const SPOTS = [
-  {id:1,name:"Casa",lat:39.5647,lng:8.9011},
+  {id:1,name:"Casa — Via M. Buonarroti 2A",lat:39.5647,lng:8.9011},
   {id:2,name:"Villa Comunale",lat:39.5640,lng:8.8960},
   {id:3,name:"Castello Eleonora d'Arborea",lat:39.5633,lng:8.8979},
-  {id:17,name:"Nuraghe Genna Maria",lat:39.6344,lng:8.8544},
+  {id:4,name:"Piazza San Pietro",lat:39.5612,lng:8.8998},
+  {id:5,name:"Chiesa San Lorenzo",lat:39.5628,lng:8.8965},
+  {id:6,name:"Chiesa Sacro Cuore — Strovina",lat:39.5238,lng:8.8483},
+  {id:7,name:"Chiesa Sant'Antiogu nou",lat:39.5745,lng:8.9094},
+  {id:8,name:"Campo sportivo",lat:39.5670,lng:8.8850},
+  {id:9,name:"Periferia nord — campi",lat:39.5720,lng:8.8900},
+  {id:10,name:"Zona artigianale est",lat:39.5650,lng:8.9080},
+  {id:11,name:"Castello Monreale — Sardara",lat:39.5950,lng:8.7932},
+  {id:12,name:"Nuraghe Ortu Comidu",lat:39.5897,lng:8.8444},
+  {id:13,name:"Campagna SP4 — Terme Sardara",lat:39.6139,lng:8.7858},
+  {id:14,name:"Nuraghe Arrubiu — Sardara",lat:39.6174,lng:8.7628},
+  {id:15,name:"Campi SS131 — Mogoro/Sardara",lat:39.6400,lng:8.7700},
+  {id:16,name:"Chiesa Santu Antiogu Becciu",lat:39.6069,lng:8.8890},
+  {id:17,name:"Nuraghe Genna Maria — Collinas",lat:39.6344,lng:8.8544},
+  {id:18,name:"Nuraghe Cuccuru de su Casu",lat:39.5968,lng:8.8740},
+  {id:19,name:"Parco della Giara — Tuili",lat:39.7319,lng:8.9743},
   {id:20,name:"Su Nuraxi — Barumini",lat:39.7059,lng:8.9907},
 ];
 
-const MV = 35; // max wind threshold
+const MV = 35; // max wind threshold (km/h)
 
 export default {
   // HTTP handler — manages subscriptions
@@ -56,14 +72,155 @@ export default {
       return new Response(JSON.stringify(result), { headers });
     }
 
+    // GET /digest?mode=morning|evening — manually trigger digest (for testing)
+    if (url.pathname === '/digest') {
+      const mode = url.searchParams.get('mode') === 'evening' ? 'evening' : 'morning';
+      const result = await sendDigest(env, mode);
+      return new Response(JSON.stringify(result), { headers });
+    }
+
     return new Response('{"service":"dronewind-push"}', { headers });
   },
 
-  // Cron handler — runs every 3 hours
+  // Cron handler — runs at 6,7,9,12,15,18,20,21 UTC
+  // Routes by Rome local hour: 8 → morning digest, 22 → evening digest, others → change alerts
   async scheduled(event, env, ctx) {
+    const romeHour = parseInt(new Date().toLocaleString('en-GB', {
+      timeZone: 'Europe/Rome', hour: '2-digit', hour12: false
+    }));
+    if (romeHour === 8)  return ctx.waitUntil(sendDigest(env, 'morning'));
+    if (romeHour === 22) return ctx.waitUntil(sendDigest(env, 'evening'));
     ctx.waitUntil(checkAndNotify(env));
   }
 };
+
+// ── DIGEST: weekly summary at 08:00 (today→Sunday) and 22:00 (tomorrow→Sunday) ──
+async function sendDigest(env, mode) {
+  // Compute Rome-local "today" date
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year:'numeric', month:'2-digit', day:'2-digit' });
+  const parts = fmt.formatToParts(new Date());
+  const ymd = parts.filter(p=>p.type!=='literal').reduce((a,p)=>(a[p.type]=p.value,a),{});
+  const todayStr = `${ymd.year}-${ymd.month}-${ymd.day}`;
+
+  // Day of week in Rome (0=Sun..6=Sat)
+  const romeDow = new Date(todayStr+'T12:00:00+01:00').getUTCDay(); // approx, good enough
+  // Days to Sunday inclusive (today=Sun → 1 day, today=Mon → 7 days, etc.)
+  const daysToSundayInclusive = romeDow === 0 ? 1 : (7 - romeDow + 1);
+
+  const startOffset = mode === 'evening' ? 1 : 0;
+  let nDays = daysToSundayInclusive - startOffset;
+  if (nDays < 1) nDays = 1; // safety
+  if (nDays > 7) nDays = 7; // Open-Meteo free limit
+
+  // Aggregate spots: hardcoded SPOTS + any spots passed by subscribers (custom)
+  const allSpotsMap = new Map();
+  SPOTS.forEach(s => allSpotsMap.set(`${s.lat.toFixed(4)},${s.lng.toFixed(4)}`, s));
+
+  const subList = await env.SUBS.list({ prefix: 'sub:' });
+  const subscribers = [];
+  for (const key of subList.keys) {
+    try {
+      const data = JSON.parse(await env.SUBS.get(key.name));
+      if (!data || !data.sub) continue;
+      subscribers.push(data);
+      // include custom spots from subscribers
+      if (Array.isArray(data.spots)) {
+        data.spots.forEach(sp => {
+          if (sp && typeof sp === 'object' && sp.lat && sp.lng && sp.name) {
+            const k = `${sp.lat.toFixed(4)},${sp.lng.toFixed(4)}`;
+            if (!allSpotsMap.has(k)) allSpotsMap.set(k, { id: sp.id, name: sp.name, lat: sp.lat, lng: sp.lng });
+          }
+        });
+      }
+    } catch {}
+  }
+
+  if (subscribers.length === 0) return { sent: 0, reason: 'no subscribers' };
+
+  const allSpots = Array.from(allSpotsMap.values());
+
+  // Fetch forecast and compute 2h windows for each spot
+  // bestPerDay[dayStr] = { window, spot } — best window across all spots that day
+  const bestPerDay = {};
+
+  await Promise.all(allSpots.map(async spot => {
+    try {
+      const u = `https://api.open-meteo.com/v1/forecast?latitude=${spot.lat}&longitude=${spot.lng}&hourly=windspeed_10m,windspeed_80m,windgusts_10m&windspeed_unit=kmh&timezone=Europe%2FRome&forecast_days=${nDays}`;
+      const r = await fetch(u);
+      if (!r.ok) return;
+      const d = await r.json();
+      const hours = d.hourly.time.map((t, i) => {
+        const v10 = d.hourly.windspeed_10m[i] || 0;
+        const v80 = d.hourly.windspeed_80m[i] || v10 * 1.2;
+        const v50 = Math.round(v10 + (v80 - v10) * (40 / 70));
+        const g = Math.round(d.hourly.windgusts_10m[i] || 0);
+        return { day: t.split('T')[0], hr: parseInt(t.split('T')[1]), v50, g };
+      });
+      const byDay = {};
+      hours.forEach(h => { (byDay[h.day] = byDay[h.day] || []).push(h); });
+      Object.entries(byDay).forEach(([day, arr]) => {
+        arr.sort((a,b)=>a.hr-b.hr);
+        for (let i = 0; i < arr.length - 1; i++) {
+          const h0 = arr[i], h1 = arr[i+1];
+          if (h1.hr !== h0.hr + 1) continue;
+          const w0 = Math.max(h0.v50, h0.g), w1 = Math.max(h1.v50, h1.g);
+          if (w0 > MV || w1 > MV) continue;
+          const maxWorst = Math.max(w0, w1);
+          const ratingOrder = maxWorst <= 15 ? 0 : maxWorst <= 30 ? 1 : 2;
+          const win = { day, startHr: h0.hr, endHr: h1.hr + 1, maxWorst, ratingOrder, spotName: spot.name };
+          const cur = bestPerDay[day];
+          if (!cur || win.ratingOrder < cur.ratingOrder || (win.ratingOrder === cur.ratingOrder && win.maxWorst < cur.maxWorst)) {
+            bestPerDay[day] = win;
+          }
+        }
+      });
+    } catch {}
+  }));
+
+  // Build message body
+  const dayLabels = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+  const pad = n => String(n).padStart(2, '0');
+  const ratingTxt = o => o === 0 ? 'OTTIMO' : o === 1 ? 'BUONO' : 'ATTENZIONE';
+
+  const lines = [];
+  for (let i = 0; i < nDays; i++) {
+    const dt = new Date(todayStr + 'T12:00:00+01:00');
+    dt.setUTCDate(dt.getUTCDate() + startOffset + i);
+    const dStr = `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth()+1)}-${pad(dt.getUTCDate())}`;
+    let label;
+    if (dStr === todayStr) label = 'Oggi';
+    else if (i === 0 && mode === 'evening') label = 'Domani';
+    else label = dayLabels[dt.getUTCDay()];
+
+    const w = bestPerDay[dStr];
+    if (w) {
+      lines.push(`${label} ${pad(w.startHr)}–${pad(w.endHr)} ${ratingTxt(w.ratingOrder)} @ ${w.spotName}`);
+    } else {
+      lines.push(`${label} — nessuna finestra`);
+    }
+  }
+
+  const title = mode === 'morning'
+    ? '🌅 Mattino — Settimana di volo'
+    : '🌙 Sera — Settimana di volo';
+
+  const notif = {
+    title,
+    body: lines.join('\n'),
+    tag: `digest-${mode}-${todayStr}`
+  };
+
+  // Send to all subscribers
+  let sent = 0, failed = 0;
+  for (const data of subscribers) {
+    try {
+      const ok = await sendPush(data.sub, notif, env);
+      if (ok) sent++; else failed++;
+    } catch { failed++; }
+  }
+
+  return { mode, sent, failed, days: nDays, title, body: notif.body };
+}
 
 async function checkAndNotify(env) {
   // 1. Fetch wind for all spots

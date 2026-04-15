@@ -198,6 +198,11 @@ body{color-scheme:dark}
 /* locate me button */
 .loc-btn{position:absolute;top:10px;right:10px;z-index:500;background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--rd);padding:8px;cursor:pointer;color:var(--tx);font-size:16px;line-height:1;transition:border-color .15s}
 .loc-btn:hover{border-color:var(--G)}
+/* ── ASSISTANT FAB ─────────────────────────────── */
+#asstFab{position:fixed;right:14px;bottom:70px;z-index:900;width:54px;height:54px;border-radius:50%;background:var(--G);border:none;color:#000;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;transition:transform .15s,background .15s}
+#asstFab:hover{transform:scale(1.05)}
+#asstFab.listening{background:var(--R);color:#fff;animation:micpulse 1s infinite}
+#asstFab.speaking{background:var(--A);color:#000}
 /* ── WINDOWS PANEL ─────────────────────────────── */
 .wcard{background:var(--bg2);border-radius:var(--rd);border:1px solid var(--bdr);padding:12px;margin-bottom:8px;border-left:3px solid var(--tx3)}
 .wcard-spot{font-size:13px;font-weight:700;margin-bottom:4px}
@@ -373,6 +378,7 @@ body{color-scheme:dark}
 </div>
 
 <div id="ov" onclick="cmClose(event)"><div id="mo"><div class="mhnd"></div><div id="mc"></div></div></div>
+<button id="asstFab" onclick="toggleAssistant()" title="Assistente vocale (richiede connessione)" aria-label="Assistente vocale">🎙️</button>
 <div id="toast"></div>
 
 <script>
@@ -1124,16 +1130,17 @@ async function subscribePush(){
     if(!sub){
       sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUB)});
     }
-    // send to backend
+    // send to backend with FULL spot objects (FS + custom CS) so the worker can include custom spots in the digest
+    const allSpotObjs=AS().map(s=>({id:s.id,name:s.name,lat:s.lat,lng:s.lng}));
     await fetch(PUSH_SERVER+'/subscribe',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({subscription:sub.toJSON(),spots:FAVS})
+      body:JSON.stringify({subscription:sub.toJSON(),spots:allSpotObjs})
     });
     localStorage.setItem('pushEnabled','true');
     document.getElementById('pushBtn').style.display='none';
     document.getElementById('pushOff').style.display='inline-block';
-    st.textContent='Notifiche push attive — riepilogo alle 6 + avvisi cambiamenti';
+    st.textContent='Notifiche attive — digest 08:00 e 22:00 + avvisi cambiamenti';
     st.style.color='var(--G)';
     toast('Notifiche push attivate');
   }catch(e){
@@ -1507,6 +1514,195 @@ document.querySelectorAll('.tab').forEach(t=>{
     }
   });
 });
+
+// ══ VOICE ASSISTANT ════════════════════════════════════════
+// Web Speech API — STT (riconoscimento) + TTS (sintesi) in italiano.
+// Pattern matching su frasi predefinite, nessuna API esterna (gratis, no key).
+// Richiede connessione internet (Chrome/Edge/Android delegano al cloud per STT).
+
+let _asstRec=null,_asstActive=false,_asstVoice=null;
+
+// preload voci TTS (può essere asincrono)
+if('speechSynthesis' in window){
+  const loadVoices=()=>{
+    const vs=speechSynthesis.getVoices();
+    _asstVoice=vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('it'))||null;
+  };
+  loadVoices();
+  if(speechSynthesis.onvoiceschanged!==undefined)speechSynthesis.onvoiceschanged=loadVoices;
+}
+
+function speak(text){
+  if(!('speechSynthesis' in window)){toast('Sintesi vocale non supportata');return;}
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='it-IT';u.rate=1.0;u.pitch=1.0;
+  if(_asstVoice)u.voice=_asstVoice;
+  const fab=document.getElementById('asstFab');
+  u.onstart=()=>{if(fab)fab.classList.add('speaking');};
+  u.onend=()=>{if(fab)fab.classList.remove('speaking');};
+  u.onerror=()=>{if(fab)fab.classList.remove('speaking');};
+  speechSynthesis.speak(u);
+}
+
+function toggleAssistant(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Assistente vocale non supportato su questo browser');return;}
+  const fab=document.getElementById('asstFab');
+  if(_asstActive&&_asstRec){try{_asstRec.stop();}catch{}_asstActive=false;if(fab)fab.classList.remove('listening');return;}
+  // se sta parlando, fermalo
+  if('speechSynthesis' in window)speechSynthesis.cancel();
+  _asstRec=new SR();
+  _asstRec.lang='it-IT';
+  _asstRec.interimResults=false;
+  _asstRec.maxAlternatives=1;
+  _asstRec.onstart=()=>{_asstActive=true;if(fab)fab.classList.add('listening');toast('Parla ora...');};
+  _asstRec.onerror=e=>{_asstActive=false;if(fab)fab.classList.remove('listening');toast('Errore microfono: '+(e.error||''));};
+  _asstRec.onend=()=>{_asstActive=false;if(fab)fab.classList.remove('listening');};
+  _asstRec.onresult=ev=>{
+    const txt=ev.results[0][0].transcript;
+    toast('Hai detto: "'+txt+'"');
+    handleVoiceCommand(txt);
+  };
+  try{_asstRec.start();}catch{toast('Impossibile avviare il microfono');}
+}
+
+// Normalizza per match: lowercase + rimuovi accenti
+function _norm(s){return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[?!.,;:]/g,'').trim();}
+
+// Trova spot per match nel testo (substring case-insensitive sul nome)
+function findSpotByName(text){
+  const n=_norm(text);
+  const all=AS();
+  // priorità: match più lungo
+  const matches=all.map(s=>{
+    const sn=_norm(s.name);
+    // estrai parole significative del nome (>3 lettere)
+    const words=sn.split(/\s+/).filter(w=>w.length>3);
+    let score=0;
+    if(n.includes(sn))score=sn.length+10;
+    else for(const w of words)if(n.includes(w))score=Math.max(score,w.length);
+    return{s,score};
+  }).filter(m=>m.score>0).sort((a,b)=>b.score-a.score);
+  return matches.length?matches[0].s:null;
+}
+
+// Parser intent — restituisce {intent, spot?, when?}
+function parseVoiceIntent(text){
+  const t=_norm(text);
+  if(/aiut|cosa puoi|cosa sai/.test(t))return{intent:'help'};
+  if(/finestre? (della |di )?settiman|prossim[ai] giorni|riepilog/.test(t))return{intent:'week_summary'};
+  if(/finestre? (di )?domani|previsioni? (di )?domani|domani.*vento|vento.*domani/.test(t))return{intent:'tomorrow_summary'};
+  if(/finestre? (di )?oggi|previsioni? (di )?oggi/.test(t))return{intent:'today_summary'};
+  if(/quando posso volar/.test(t))return{intent:'next_window',spot:findSpotByName(t)};
+  if(/posso volar/.test(t))return{intent:'can_fly',spot:findSpotByName(t)};
+  if(/(che |quanto )?vento (c'?e )?(a |su |in |nel|nella)/.test(t)||/vento (a |su )/.test(t))return{intent:'wind_at',spot:findSpotByName(t)};
+  if(/vento (qui|adesso|ora)/.test(t))return{intent:'can_fly',spot:null};
+  // fallback: se nomina uno spot, vai su wind_at
+  const sp=findSpotByName(t);
+  if(sp)return{intent:'wind_at',spot:sp};
+  return{intent:'unknown'};
+}
+
+async function handleVoiceCommand(text){
+  const it=parseVoiceIntent(text);
+  let answer='';
+  try{
+    if(it.intent==='help'){
+      answer='Posso dirti che vento c\'è in uno spot, se puoi volare adesso, quando potrai volare, e le finestre di volo per oggi, domani o tutta la settimana. Prova a chiedere: che vento c\'è a Sanluri, oppure quando posso volare.';
+    }
+    else if(it.intent==='wind_at'){
+      const sp=it.spot;
+      if(!sp){answer='Non ho capito di quale spot parli. Dimmi un nome di un posto.';}
+      else{
+        const now=new Date();
+        const ds=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+        const w=await fw(sp.lat,sp.lng,ds,now.getHours());
+        if(!w){answer='Non riesco a leggere il vento adesso, riprova tra poco.';}
+        else{
+          const status=st(w);
+          const stxt=status==='ottimo'?'condizioni ottime':status==='go'?'si può volare':status==='warn'?'volo con attenzione':'meglio non volare';
+          answer='A '+sp.name+' il vento è '+w.v50+' chilometri orari con raffiche a '+w.g+'. '+stxt+'.';
+        }
+      }
+    }
+    else if(it.intent==='can_fly'){
+      const sp=it.spot;
+      if(sp){
+        const now=new Date();
+        const ds=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+        const w=await fw(sp.lat,sp.lng,ds,now.getHours());
+        if(!w){answer='Non riesco a leggere il vento. Riprova tra poco.';}
+        else{
+          const status=st(w);
+          if(status==='ottimo')answer='Sì, a '+sp.name+' le condizioni sono ottime: '+w.v50+' chilometri orari, raffiche '+w.g+'.';
+          else if(status==='go')answer='Sì, a '+sp.name+' puoi volare: vento '+w.v50+', raffiche '+w.g+'.';
+          else if(status==='warn')answer='A '+sp.name+' puoi volare ma con attenzione: vento '+w.v50+', raffiche '+w.g+'.';
+          else answer='No, a '+sp.name+' meglio non volare: vento '+w.v50+', raffiche '+w.g+'.';
+        }
+      }else{
+        answer='Per dirti se puoi volare adesso, dimmi in quale spot. Per esempio: posso volare a Sanluri.';
+      }
+    }
+    else if(it.intent==='next_window'){
+      if(!_bwDataAll){await loadBestWindows();}
+      const sp=it.spot;
+      const list=(_bwDataAll||[]).filter(w=>w.ratingOrder<=1).filter(w=>!sp||w.spot.lat===sp.lat&&w.spot.lng===sp.lng);
+      list.sort((a,b)=>a.day.localeCompare(b.day)||a.startHr-b.startHr);
+      const next=list[0];
+      if(!next){answer=sp?('A '+sp.name+' non vedo finestre buone nei prossimi giorni.'):'Non vedo finestre buone nei prossimi giorni.';}
+      else{
+        const dayLabel=fmtWindowDay(next.day);
+        const where=sp?'a '+sp.name:'a '+next.spot.name;
+        const rt=next.ratingOrder===0?'ottima':'buona';
+        answer='La prossima finestra '+rt+' '+where+' è '+dayLabel.toLowerCase()+' dalle '+next.startHr+' alle '+next.endHr+'.';
+      }
+    }
+    else if(it.intent==='today_summary'||it.intent==='tomorrow_summary'){
+      if(!_bwDataAll){await loadBestWindows();}
+      const target=new Date();
+      if(it.intent==='tomorrow_summary')target.setDate(target.getDate()+1);
+      const tStr=target.getFullYear()+'-'+String(target.getMonth()+1).padStart(2,'0')+'-'+String(target.getDate()).padStart(2,'0');
+      const day=(_bwDataAll||[]).filter(w=>w.day===tStr&&w.ratingOrder<=1).sort((a,b)=>a.ratingOrder-b.ratingOrder||a.maxWorst-b.maxWorst);
+      const lbl=it.intent==='today_summary'?'Oggi':'Domani';
+      if(!day.length){answer=lbl+' nessuna finestra di volo decente.';}
+      else{
+        const top=day.slice(0,3).map(w=>{
+          const rt=w.ratingOrder===0?'ottima':'buona';
+          return 'finestra '+rt+' dalle '+w.startHr+' alle '+w.endHr+' a '+w.spot.name;
+        }).join('; ');
+        answer=lbl+': '+top+'.';
+      }
+    }
+    else if(it.intent==='week_summary'){
+      if(!_bwDataAll){await loadBestWindows();}
+      const byDay={};
+      (_bwDataAll||[]).filter(w=>w.ratingOrder<=1).forEach(w=>{
+        const cur=byDay[w.day];
+        if(!cur||w.ratingOrder<cur.ratingOrder||(w.ratingOrder===cur.ratingOrder&&w.maxWorst<cur.maxWorst))byDay[w.day]=w;
+      });
+      const days=Object.keys(byDay).sort();
+      if(!days.length){answer='Nessuna finestra di volo nei prossimi giorni.';}
+      else{
+        const parts=days.slice(0,5).map(d=>{
+          const w=byDay[d];
+          const lbl=fmtWindowDay(d).toLowerCase();
+          const rt=w.ratingOrder===0?'ottima':'buona';
+          return lbl+' dalle '+w.startHr+' alle '+w.endHr+' a '+w.spot.name+', '+rt;
+        });
+        answer='Nei prossimi giorni: '+parts.join('. ')+'.';
+      }
+    }
+    else{
+      answer='Non ho capito la richiesta. Dì "aiuto" per sapere cosa posso fare.';
+    }
+  }catch(e){
+    answer='Si è verificato un errore: '+(e.message||e);
+  }
+  // mostra anche nel toast e leggi
+  toast(answer);
+  speak(answer);
+}
 
 restoreTheme();
 restorePush();

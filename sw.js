@@ -1,4 +1,4 @@
-const CACHE = 'dronewind-v9';
+const CACHE = 'dronewind-v10';
 const STATIC = ['./manifest.json','./icon-192.png','./icon-512.png','./sw.js'];
 
 // Skip waiting immediately on install — no need to close all tabs
