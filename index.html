@@ -269,17 +269,23 @@ body{color-scheme:dark}
     <span style="font-size:11px;color:var(--tx3)">&mdash;</span>
     <select id="whr-end" onchange="applyWindowFilters()" style="background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rd);color:var(--tx);font-family:var(--mono);font-size:12px;padding:6px 8px;outline:none"></select>
   </div>
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-    <button class="btn sec sm" onclick="getWinGPS()">Usa GPS</button>
-    <span style="font-size:11px;color:var(--tx3)">oppure</span>
-    <input type="text" id="wdist-point" placeholder="lat, lng" style="width:120px;font-size:11px" onchange="applyWindowFilters()">
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--tx2)">Distanza da</span>
+    <button class="btn sec sm" onclick="setWinHome()" id="wdist-home-btn" title="Via Buonarroti 2, Sanluri">🏠 Casa</button>
+    <button class="btn sec sm" onclick="getWinGPS()" id="wdist-gps-btn">📍 GPS</button>
     <select id="wdist-max" onchange="applyWindowFilters()" style="background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rd);color:var(--tx);font-family:var(--mono);font-size:12px;padding:6px 8px;outline:none">
-      <option value="0">Qualsiasi distanza</option>
+      <option value="0">Qualsiasi</option>
       <option value="5">Entro 5 km</option>
       <option value="10">Entro 10 km</option>
       <option value="20">Entro 20 km</option>
       <option value="50">Entro 50 km</option>
     </select>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;position:relative">
+    <input type="text" id="wdist-addr" placeholder="oppure cerca un indirizzo..." style="flex:1;min-width:160px;font-size:12px" oninput="onWinAddrInput()" onkeydown="onWinAddrKey(event)">
+    <button class="btn sec sm" onclick="clearWinDist()" title="Rimuovi punto di riferimento">✕</button>
+    <div id="wdist-sug" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--rd);max-height:220px;overflow-y:auto;margin-top:2px"></div>
+    <div id="wdist-info" style="flex-basis:100%;font-size:11px;color:var(--tx3);margin-top:2px"></div>
   </div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
     <span style="font-size:11px;color:var(--tx2)">Ordina per</span>
@@ -1189,14 +1195,127 @@ let _bwData=null,_bwDataAll=null,_bwTs=0;
   }
 })();
 
+// ── Distance reference point (Finestre tab) ──────────────
+// HOME_ADDR è l'indirizzo predefinito; coords cachate in localStorage
+const HOME_ADDR='Via Michelangelo Buonarroti 2, 09025 Sanluri SU';
+const HOME_FALLBACK={lat:39.5605,lng:8.8985}; // centro Sanluri come fallback se geocoding fallisce
+let _winDistPt=null; // {lat,lng,label,source:'home'|'gps'|'addr'}
+let _winAddrSugTimer=null,_winAddrSugData=[];
+
+function setWinDistPt(pt){
+  _winDistPt=pt;
+  const info=document.getElementById('wdist-info');
+  if(info)info.textContent=pt?('Riferimento: '+pt.label):'';
+  // visual highlight on active button
+  const hb=document.getElementById('wdist-home-btn'),gb=document.getElementById('wdist-gps-btn');
+  if(hb)hb.style.opacity=(pt&&pt.source==='home')?'1':'.6';
+  if(gb)gb.style.opacity=(pt&&pt.source==='gps')?'1':'.6';
+  applyWindowFilters();
+}
+
+function clearWinDist(){
+  _winDistPt=null;
+  const a=document.getElementById('wdist-addr');if(a)a.value='';
+  hideWinAddrSug();
+  setWinDistPt(null);
+}
+
+async function setWinHome(){
+  // try cached coords first
+  let cached=null;
+  try{const j=localStorage.getItem('home_coords');if(j)cached=JSON.parse(j);}catch{}
+  if(cached&&cached.lat&&cached.lng){
+    setWinDistPt({lat:cached.lat,lng:cached.lng,label:'🏠 Casa (Sanluri)',source:'home'});
+    return;
+  }
+  // geocode via Photon
+  try{
+    const u='https://photon.komoot.io/api/?q='+encodeURIComponent(HOME_ADDR)+'&lat=39.5648&lon=8.8942&limit=1&lang=default';
+    const r=await fetch(u);
+    const d=await r.json();
+    if(d.features&&d.features.length){
+      const c=d.features[0].geometry.coordinates;
+      const lat=c[1],lng=c[0];
+      try{localStorage.setItem('home_coords',JSON.stringify({lat,lng}));}catch{}
+      setWinDistPt({lat,lng,label:'🏠 Casa (Sanluri)',source:'home'});
+      return;
+    }
+  }catch{}
+  // fallback
+  setWinDistPt({lat:HOME_FALLBACK.lat,lng:HOME_FALLBACK.lng,label:'🏠 Casa (Sanluri, approx)',source:'home'});
+}
+
 function getWinGPS(){
   if(!navigator.geolocation){toast('GPS non disponibile');return;}
   navigator.geolocation.getCurrentPosition(pos=>{
     MP={lat:pos.coords.latitude,lng:pos.coords.longitude};
-    document.getElementById('wdist-point').value=pos.coords.latitude.toFixed(5)+', '+pos.coords.longitude.toFixed(5);
-    applyWindowFilters();
+    setWinDistPt({lat:pos.coords.latitude,lng:pos.coords.longitude,label:'📍 La mia posizione',source:'gps'});
   },()=>toast('Impossibile rilevare posizione'));
 }
+
+function onWinAddrInput(){
+  const q=document.getElementById('wdist-addr').value.trim();
+  if(_winAddrSugTimer)clearTimeout(_winAddrSugTimer);
+  if(q.length<3){hideWinAddrSug();return;}
+  _winAddrSugTimer=setTimeout(()=>doWinAddrSearch(q),350);
+}
+
+async function doWinAddrSearch(q){
+  // accept lat,lng directly
+  const cm=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if(cm){
+    const lat=parseFloat(cm[1]),lng=parseFloat(cm[2]);
+    _winAddrSugData=[{name:'Coordinate '+lat.toFixed(5)+', '+lng.toFixed(5),addr:'',lat,lng}];
+    renderWinAddrSug();return;
+  }
+  try{
+    const u='https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lat=39.5648&lon=8.8942&limit=6&lang=default';
+    const r=await fetch(u);
+    const d=await r.json();
+    _winAddrSugData=(d.features||[]).map(f=>({
+      name:f.properties.name||f.properties.street||q,
+      addr:[f.properties.housenumber||'',f.properties.street||'',f.properties.city||f.properties.county||'',f.properties.state||''].filter(Boolean).join(' '),
+      lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0]
+    }));
+    renderWinAddrSug();
+  }catch{hideWinAddrSug();}
+}
+
+function renderWinAddrSug(){
+  const el=document.getElementById('wdist-sug');
+  if(!_winAddrSugData.length){hideWinAddrSug();return;}
+  el.innerHTML=_winAddrSugData.map((s,i)=>
+    '<div class="sug" data-idx="'+i+'" onclick="pickWinAddr('+i+')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--bdr2)">'+
+    '<div style="font-size:12px;color:var(--tx)">🔍 '+esc(s.name)+'</div>'+
+    '<div style="font-size:10px;color:var(--tx3)">'+esc(s.addr||'')+'</div></div>'
+  ).join('');
+  el.style.display='block';
+}
+
+function hideWinAddrSug(){
+  const el=document.getElementById('wdist-sug');if(el)el.style.display='none';
+  _winAddrSugData=[];
+}
+
+function pickWinAddr(i){
+  const s=_winAddrSugData[i];if(!s)return;
+  document.getElementById('wdist-addr').value=s.name+(s.addr?' — '+s.addr:'');
+  hideWinAddrSug();
+  setWinDistPt({lat:s.lat,lng:s.lng,label:s.name,source:'addr'});
+}
+
+function onWinAddrKey(e){
+  if(e.key==='Enter'){e.preventDefault();if(_winAddrSugData.length)pickWinAddr(0);}
+  else if(e.key==='Escape'){hideWinAddrSug();}
+}
+
+// chiudi suggerimenti se clicchi fuori
+document.addEventListener('click',e=>{
+  const wrap=document.getElementById('wdist-addr');
+  const sug=document.getElementById('wdist-sug');
+  if(!wrap||!sug)return;
+  if(e.target!==wrap&&!sug.contains(e.target))hideWinAddrSug();
+});
 
 async function loadBestWindows(){
   const el=document.getElementById('wwin-list');
@@ -1284,14 +1403,7 @@ function applyWindowFilters(){
   const hrEnd=parseInt(document.getElementById('whr-end').value);
   const sortMode=document.getElementById('wsort').value;
   const maxDistVal=parseInt(document.getElementById('wdist-max').value)||0;
-  const ptRaw=document.getElementById('wdist-point').value.trim();
-
-  // parse distance point
-  let distPt=null;
-  if(ptRaw){
-    const m=ptRaw.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
-    if(m)distPt={lat:parseFloat(m[1]),lng:parseFloat(m[2])};
-  }
+  const distPt=_winDistPt?{lat:_winDistPt.lat,lng:_winDistPt.lng}:null;
 
   // 1. filter by hour range
   let filtered=_bwDataAll.filter(w=>w.startHr>=hrStart&&w.endHr<=hrEnd+1);
@@ -1308,7 +1420,7 @@ function applyWindowFilters(){
 
   // 4. sort — if distance sort requested but no GPS, ask user and fallback
   if((sortMode==='dist'||sortMode==='dist-wind')&&!distPt){
-    toast('Attiva il GPS o inserisci coordinate per ordinare per distanza');
+    toast('Scegli Casa, GPS o un indirizzo per ordinare per distanza');
     // fallback: sort by wind quality
     filtered=filtered.filter(w=>w.ratingOrder<=1);
     filtered.sort((a,b)=>a.ratingOrder-b.ratingOrder||a.maxWorst-b.maxWorst);
@@ -1386,10 +1498,12 @@ function shareWindowsWA(){
 }
 
 // auto-load windows when tab clicked (if stale >5min)
+// + attiva "Casa" come riferimento distanza al primo accesso
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click',()=>{
-    if(t.dataset.p==='windows'&&(Date.now()-_bwTs>300000)){
-      loadBestWindows();
+    if(t.dataset.p==='windows'){
+      if(!_winDistPt)setWinHome();
+      if(Date.now()-_bwTs>300000)loadBestWindows();
     }
   });
 });
