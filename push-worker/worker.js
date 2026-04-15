@@ -72,6 +72,13 @@ export default {
       return new Response(JSON.stringify(result), { headers });
     }
 
+    // POST /chat — voice assistant fallback via Claude Haiku
+    if (url.pathname === '/chat' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const result = await handleChat(body, env);
+      return new Response(JSON.stringify(result), { headers, status: result.error ? 400 : 200 });
+    }
+
     // GET /digest?mode=morning|evening — manually trigger digest (for testing)
     if (url.pathname === '/digest') {
       const mode = url.searchParams.get('mode') === 'evening' ? 'evening' : 'morning';
@@ -93,6 +100,122 @@ export default {
     ctx.waitUntil(checkAndNotify(env));
   }
 };
+
+// ── CHAT: voice assistant fallback con Claude Haiku 4.5 ──
+// Prompt caching sul system prompt → -75% costo dopo la prima chiamata
+// Safety: limite giornaliero hard-coded nel worker, oltre al limite del dashboard Anthropic
+const CHAT_MODEL = 'claude-haiku-4-5-20251001';
+const CHAT_DAILY_LIMIT = 200; // ~€1-2/mese se usato pieno, ben sotto €5
+
+const CHAT_SYSTEM_STATIC = `Sei l'assistente vocale di DroneWind, app per piloti di droni in Sardegna (zona Sanluri). L'utente ha un DJI Mini 5 Pro (249g, categoria Open A1).
+
+SOGLIE VENTO (km/h a 50m di altezza):
+- OTTIMO: ≤ 15 km/h
+- BUONO: ≤ 30 km/h (si può volare)
+- ATTENZIONE: ≤ 35 km/h (volo con cautela)
+- NO-VOLO: > 35 km/h
+
+Il vento a 50m è interpolato da 10m e 80m: v50 = v10 + (v80-v10)*(40/70).
+
+SPOT DISPONIBILI (20 posti fissi + eventuali spot custom dell'utente):
+1. Casa — Via M. Buonarroti 2A (Sanluri centro) 39.5647, 8.9011
+2. Villa Comunale (Sanluri) 39.5640, 8.8960
+3. Castello Eleonora d'Arborea (Sanluri, bene culturale) 39.5633, 8.8979
+4. Piazza San Pietro (Sanluri) 39.5612, 8.8998
+5. Chiesa San Lorenzo (Sanluri) 39.5628, 8.8965
+6. Chiesa Sacro Cuore — Strovina 39.5238, 8.8483
+7. Chiesa Sant'Antiogu nou (Sanluri) 39.5745, 8.9094
+8. Campo sportivo (Sanluri) 39.5670, 8.8850
+9. Periferia nord — campi (Sanluri) 39.5720, 8.8900
+10. Zona artigianale est (Sanluri) 39.5650, 8.9080
+11. Castello Monreale — Sardara 39.5950, 8.7932
+12. Nuraghe Ortu Comidu 39.5897, 8.8444
+13. Campagna SP4 — Terme Sardara 39.6139, 8.7858
+14. Nuraghe Arrubiu — Sardara 39.6174, 8.7628
+15. Campi SS131 — Mogoro/Sardara 39.6400, 8.7700
+16. Chiesa Santu Antiogu Becciu 39.6069, 8.8890
+17. Nuraghe Genna Maria — Collinas 39.6344, 8.8544
+18. Nuraghe Cuccuru de su Casu 39.5968, 8.8740
+19. Parco della Giara — Tuili (parco naturale) 39.7319, 8.9743
+20. Su Nuraxi — Barumini (UNESCO) 39.7059, 8.9907
+
+REGOLE DI RISPOSTA:
+- Risposta in italiano, breve (max 2 frasi), tono naturale parlato
+- La risposta verrà LETTA AD ALTA VOCE da sintesi vocale → niente markdown, niente emoji, niente elenchi puntati
+- Se la domanda riguarda un posto non in elenco, di' che non ce l'hai tra gli spot
+- Se non hai dati meteo sufficienti, dillo e suggerisci di controllare la tab Vento
+- Non inventare valori: usa solo i dati passati nel contesto
+- Se l'utente dice qualcosa che non c'entra col drone/meteo, riporta cortesemente al tema`;
+
+async function handleChat(body, env) {
+  if (!env.ANTHROPIC_API_KEY) {
+    return { error: 'API key non configurata sul worker', answer: 'Mi dispiace, l\'assistente AI non è ancora configurato.' };
+  }
+  const transcript = (body.transcript || '').toString().slice(0, 500).trim();
+  if (!transcript) return { error: 'transcript mancante' };
+
+  // Rate limit: max N chiamate/giorno (anti-abuso + safety €5/mese)
+  const pad = n => String(n).padStart(2, '0');
+  const now = new Date();
+  const romeFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year:'numeric', month:'2-digit', day:'2-digit' });
+  const parts = romeFmt.formatToParts(now).filter(p=>p.type!=='literal').reduce((a,p)=>(a[p.type]=p.value,a),{});
+  const dayKey = 'chat:' + parts.year + '-' + parts.month + '-' + parts.day;
+  let count = 0;
+  try { count = parseInt(await env.SUBS.get(dayKey)) || 0; } catch {}
+  if (count >= CHAT_DAILY_LIMIT) {
+    return { error: 'limit_reached', answer: 'Ho raggiunto il limite di richieste giornaliere per l\'assistente. Riprova domani.' };
+  }
+
+  // Contesto dinamico (data/ora Roma, eventuali dati passati dal client)
+  const romeTime = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', weekday: 'long', day: '2-digit', month: 'long' }).format(now);
+  const ctx = body.context && typeof body.context === 'object' ? body.context : {};
+  const ctxLines = [`Ora attuale (Roma): ${romeTime}`];
+  if (ctx.currentWind) ctxLines.push(`Vento attuale dove l'utente sta guardando: ${JSON.stringify(ctx.currentWind)}`);
+  if (ctx.nearSpots) ctxLines.push(`Spot più vicini all'utente: ${JSON.stringify(ctx.nearSpots)}`);
+  if (ctx.bestWindows) ctxLines.push(`Migliori finestre 2h prossimi giorni: ${JSON.stringify(ctx.bestWindows).slice(0, 1500)}`);
+  if (ctx.customSpots && ctx.customSpots.length) ctxLines.push(`Spot custom aggiunti dall'utente: ${JSON.stringify(ctx.customSpots)}`);
+  const dynamicContext = ctxLines.join('\n');
+
+  const payload = {
+    model: CHAT_MODEL,
+    max_tokens: 200,
+    system: [
+      { type: 'text', text: CHAT_SYSTEM_STATIC, cache_control: { type: 'ephemeral' } }
+    ],
+    messages: [
+      { role: 'user', content: `CONTESTO ATTUALE:\n${dynamicContext}\n\nDOMANDA UTENTE (trascritta dal microfono):\n"${transcript}"` }
+    ]
+  };
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { error: 'api_error', status: res.status, detail: data, answer: 'L\'assistente non è raggiungibile al momento.' };
+    }
+    const answer = (data.content && data.content[0] && data.content[0].text) || 'Non ho una risposta.';
+
+    // incrementa contatore giornaliero (scade automaticamente dopo 48h)
+    try { await env.SUBS.put(dayKey, String(count + 1), { expirationTtl: 172800 }); } catch {}
+
+    return {
+      answer: answer.trim(),
+      usage: data.usage || null,
+      daily_count: count + 1,
+      daily_limit: CHAT_DAILY_LIMIT
+    };
+  } catch (e) {
+    return { error: 'fetch_failed', answer: 'Problema di connessione con l\'assistente.' };
+  }
+}
 
 // ── DIGEST: weekly summary at 08:00 (today→Sunday) and 22:00 (tomorrow→Sunday) ──
 async function sendDigest(env, mode) {

@@ -1694,7 +1694,8 @@ async function handleVoiceCommand(text){
       }
     }
     else{
-      answer='Non ho capito la richiesta. Dì "aiuto" per sapere cosa posso fare.';
+      // Fallback a Claude Haiku via worker (se intent non riconosciuto)
+      answer=await askClaude(text);
     }
   }catch(e){
     answer='Si è verificato un errore: '+(e.message||e);
@@ -1702,6 +1703,39 @@ async function handleVoiceCommand(text){
   // mostra anche nel toast e leggi
   toast(answer);
   speak(answer);
+}
+
+// Chiama il worker che proxya a Claude API (niente API key nel client)
+async function askClaude(transcript){
+  try{
+    // raccogli contesto leggero da passare al modello
+    const ctx={};
+    // finestre già calcolate (se disponibili), limitiamo a top 15
+    if(_bwDataAll&&_bwDataAll.length){
+      ctx.bestWindows=_bwDataAll.slice(0,15).map(w=>({
+        spot:w.spot.name,day:w.day,from:w.startHr,to:w.endHr,rating:w.ratingOrder===0?'OTTIMO':w.ratingOrder===1?'BUONO':'ATTENZIONE'
+      }));
+    }
+    // spot custom (non in FS)
+    const customOnly=CS.filter(s=>!FS.find(f=>f.id===s.id)).map(s=>({name:s.name,lat:s.lat,lng:s.lng}));
+    if(customOnly.length)ctx.customSpots=customOnly;
+    // spot più vicini a MP se c'è
+    if(MP){
+      const near=AS().map(s=>({...s,d:hv(MP.lat,MP.lng,s.lat,s.lng)})).sort((a,b)=>a.d-b.d).slice(0,3).map(s=>({name:s.name,distKm:Math.round(s.d*10)/10}));
+      ctx.nearSpots=near;
+    }
+    const res=await fetch(PUSH_SERVER+'/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({transcript,context:ctx})
+    });
+    const d=await res.json();
+    if(d.answer)return d.answer;
+    if(d.error)return 'Assistente non disponibile: '+d.error;
+    return 'Non ho capito. Riprova dicendo "aiuto" per sapere cosa posso fare.';
+  }catch(e){
+    return 'Non riesco a contattare l\'assistente AI. Controlla la connessione.';
+  }
 }
 
 restoreTheme();
