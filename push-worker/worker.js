@@ -165,6 +165,8 @@ async function sendDigest(env, mode) {
           if (h1.hr !== h0.hr + 1) continue;
           const w0 = Math.max(h0.v50, h0.g), w1 = Math.max(h1.v50, h1.g);
           if (w0 > MV || w1 > MV) continue;
+          // skip notturne: solo finestre dentro 07–21 (drone vola di giorno)
+          if (h0.hr < 7 || h1.hr + 1 > 21) continue;
           const maxWorst = Math.max(w0, w1);
           const ratingOrder = maxWorst <= 15 ? 0 : maxWorst <= 30 ? 1 : 2;
           const win = { day, startHr: h0.hr, endHr: h1.hr + 1, maxWorst, ratingOrder, spotName: spot.name };
